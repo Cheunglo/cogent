@@ -302,7 +302,7 @@ instance Traversable (Flip2 Type t l) where  -- e
   traverse _ (Flip2 (TVariant alts))      = pure $ Flip2 (TVariant alts)
   traverse _ (Flip2 (TTuple ts))          = pure $ Flip2 (TTuple ts)
   traverse _ (Flip2 (TUnit))              = pure $ Flip2 (TUnit)
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
   traverse f (Flip2 (TArray t e s tkns))  = Flip2 <$> (TArray t <$> f e <*> pure s <*> traverse (firstM f) tkns)
   traverse f (Flip2 (TATake idxs t))      = Flip2 <$> (TATake <$> traverse f idxs <*> pure t)
   traverse f (Flip2 (TAPut  idxs t))      = Flip2 <$> (TAPut  <$> traverse f idxs <*> pure t)
@@ -579,7 +579,7 @@ lvT (RT (TFun t1 t2)) = lvT t1 ++ lvT t2
 lvT (RT (TRecord _ fs _)) = foldMap (lvT . fst . snd) fs
 lvT (RT (TVariant alts)) = foldMap (foldMap lvT . fst) alts
 lvT (RT (TTuple ts)) = foldMap lvT ts
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 lvT (RT (TArray t _ _ _)) = lvT t
 lvT (RT (TATake _ t)) = lvT t
 lvT (RT (TAPut  _ t)) = lvT t
@@ -595,7 +595,7 @@ lvL (DLVar n) = [n]
 lvL (DLOffset e _) = lvL e
 lvL (DLRecord fs) = foldMap (\(_, _, x) -> lvL x) fs
 lvL (DLVariant t alt) = lvL t <> foldMap (\(_, _, _, x) -> lvL x) alt
-#ifdef BUILTIN_ARRAYS
+#ifdef REFINEMENT_TYPES
 lvL (DLArray e _) = lvL e
 #endif
 lvL (DLRepRef _ s) = concatMap lvL s
