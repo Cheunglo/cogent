@@ -17,7 +17,8 @@ import Data.Data
 import Data.List
 import Data.Typeable
 import Text.Parsec.Expr (Assoc(..))
-import Text.PrettyPrint.ANSI.Leijen
+--import Text.PrettyPrint.ANSI.Leijen
+import Prettyprinter
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
 #endif
@@ -26,6 +27,7 @@ import Data.Maybe (fromJust)
 import Text.Printf (printf)
 
 -- friends
+import Isabelle.PrettyAnsi
 import Isabelle.PrettyHelper
 
 --
@@ -227,13 +229,13 @@ quantifiers = [MetaBind, Lambda, Forall, Exists, ExistsBang]
 -- Pretty printing
 --
 
-abstractor :: String -> [Doc] -> Doc -> Doc
+abstractor :: String -> [Doc ann] -> Doc ann -> Doc ann
 abstractor s docs doc = string s <> hsep docs <> char '.' <+> doc
 
-absTerm :: String -> [Ident] -> Term -> Doc
+absTerm :: String -> [Ident] -> Term -> Doc ann
 absTerm s idents term = abstractor s (map pretty idents) (pretty term)
 
-binOp :: String -> Doc -> Doc -> Doc
+binOp :: String -> Doc ann -> Doc ann -> Doc ann
 binOp s d d' = d <+> string s <+> d'
 
 binOpTerm p s t t' = binOp s (prettyTerm p t) (prettyTerm p t')
@@ -241,7 +243,7 @@ binOpTerm p s t t' = binOp s (prettyTerm p t) (prettyTerm p t')
 -- precedence of application. Nothing should be higher
 termAppPrec = 100
 
-prettyTerm :: Precedence -> Term -> Doc
+prettyTerm :: Precedence -> Term -> Doc ann
 prettyTerm p t = case t of
   TermIdent i           -> pretty i
   -- highest precedence and left associative
@@ -258,20 +260,20 @@ prettyTerm p t = case t of
   AntiTerm str          -> pretty str  -- FIXME: zilinc
   CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))
 
-prettyAlt :: (Term, Term) -> Doc
-prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" </> prettyTerm (termCasePrec+1) e
+prettyAlt :: (Term, Term) -> Doc ann
+prettyAlt (p, e) = pretty p <+> pretty "\\<Rightarrow>" `fillSep2` prettyTerm (termCasePrec+1) e
 
-prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
+prettyBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc ann
 prettyBinOpTerm p b = prettyBinOp p prettyTerm (termBinOpRec b) prettyTerm
 
-prettyUnOpTerm :: Precedence -> TermUnOp -> Term -> Doc
+prettyUnOpTerm :: Precedence -> TermUnOp -> Term -> Doc ann
 prettyUnOpTerm p u = prettyUnOp p (termUnOpRec u) prettyTerm
 
 --
 -- [| P_1; ...; P_n |] ==> Q is syntactic sugar for P_1 ==> ... ==> P_n ==> Q
 --
 -- @prettyMetaImp@ takes care of printing it that way.
-prettyMetaImp :: Precedence -> Term -> Term -> Doc
+prettyMetaImp :: Precedence -> Term -> Term -> Doc ann
 prettyMetaImp p t t' = case t' of
   t'@(TermBinOp MetaImp _ _) -> go [t] t'
   _                   -> prettyBinOpTerm p MetaImp t t'
@@ -283,7 +285,7 @@ prettyMetaImp p t t' = case t' of
       (hsep . punctuate semi . map (prettyTerm (p'+1)) . reverse $ ts) <>
       string "\\<rbrakk>" <+> string (termBinOpSym MetaImp) <+> prettyTerm p' t
 
-prettyQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc
+prettyQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc ann
 prettyQuantifier p q is t = prettyParen (p > quantifierPrec q) $ string (quantifierSym q) <>
                               (hsep . map pretty $ is) <> char '.' <+> pretty t
 
@@ -308,12 +310,12 @@ instance Pretty Type where
 tyArrowSym = "\\<Rightarrow>"
 tyTupleSym = "\\<times>"
 
-prettyTypeVars :: [Type] -> Doc
+prettyTypeVars :: [Type] -> Doc ann
 prettyTypeVars [] = empty
 prettyTypeVars [ty] = prettyType 100 ty -- application has highest precedence
 prettyTypeVars tys = char '(' <> (hsep . punctuate (char ',') . map (prettyType 0) $ tys) <> char ')'  -- FIXME: not very pretty / zilinc
 
-prettyType :: Precedence -> Type -> Doc
+prettyType :: Precedence -> Type -> Doc ann
 prettyType p ty =
     case ty of
       TyVar v          -> char '\'' <> string v
@@ -351,7 +353,7 @@ instance Pretty Arity where
 -- As to not affect the generation of other Isabelle code we do not integrate it in the default prettyprinter.
 -- The type tables file content even depends on the layout and cannot be parsed if written with the imroved prettyprinter.
 
-prettyPlusTerm :: Precedence -> Term -> Doc
+prettyPlusTerm :: Precedence -> Term -> Doc ann
 prettyPlusTerm p t = case t of
   TermIdent i           -> pretty i
   -- highest precedence and left associative
@@ -373,7 +375,7 @@ termLetPrec = 10  -- taken from HOL
 termCasePrec = 10 -- taken from HOL
 termUpdatePrec = 90 -- in HOL it is 900, here we can use 90 to stay below termAppPrec, because no other precedence is higher than 90.
 
-prettyPlusApp :: Precedence -> Term -> Term -> Doc
+prettyPlusApp :: Precedence -> Term -> Term -> Doc ann
 prettyPlusApp p t t' = case t of
   TermApp (TermApp (TermIdent (Id s)) cnd) thn | s == "HOL.If" ->
       prettyParen (p > termIfPrec) $ sep
@@ -385,7 +387,7 @@ prettyPlusApp p t t' = case t of
         -> prettyPlusUpdate p [(s,val)] t'
   _ -> prettyParen (p > termAppPrec) $ prettyPlusTerm termAppPrec t <+> prettyPlusTerm (termAppPrec+1) t'
 
-prettyPlusLet :: Precedence -> [Ident] -> [Term] -> Term -> Doc
+prettyPlusLet :: Precedence -> [Ident] -> [Term] -> Term -> Doc ann
 prettyPlusLet p vs ts (QuantifiedTerm Lambda [vnam] bdy) =
     case bdy of
          TermApp (TermApp (TermIdent (Id s)) bnd) t' | s == "HOL.Let" -> prettyPlusLet p (vnam:vs) (bnd:ts) t'
@@ -393,10 +395,10 @@ prettyPlusLet p vs ts (QuantifiedTerm Lambda [vnam] bdy) =
     where
         dolet bnds =
             prettyParen (p > termLetPrec) $ string "let" <+>
-            (nest 2 . sep . punctuate semi . map (\(v,t) -> pretty v <+> string "=" <+> nest 2 (prettyPlus t)) $ bnds) <$>
+            (nest 2 . sep . punctuate semi . map (\(v,t) -> pretty v <+> string "=" <+> nest 2 (prettyPlus t)) $ bnds) `vsep2`
             string "in" <+> nest 2 (prettyPlusTerm termLetPrec bdy)
 
-prettyPlusUpdate :: Precedence -> [(String,Term)] -> Term -> Doc
+prettyPlusUpdate :: Precedence -> [(String,Term)] -> Term -> Doc ann
 prettyPlusUpdate p uds rec =
     case rec of
          TermApp (TermApp (TermIdent (Id s)) (QuantifiedTerm Lambda [v] val)) t' | ("_update" `isSuffixOf` s) && (v == (Id "_") || v == Wildcard)
@@ -408,31 +410,31 @@ prettyPlusUpdate p uds rec =
             if length updts == 1
                 then prettyrec <> nest 2 (softline <> enclose (string "\\<lparr>") (string "\\<rparr>") (prettyupd $ head updts))
                 else prettyrec <+> nest 2 (sep (((string "\\<lparr>"):(punctuate comma $ map prettyupd updts)) ++ [nest (-2) $ string "\\<rparr>"]))
-        prettyupd (f,t) = nest 2 (string f <+> string ":=" </> prettyPlus t)
+        prettyupd (f,t) = nest 2 (string f <+> string ":=" `fillSep2` prettyPlus t)
         prettyrec = prettyPlusTerm termUpdatePrec rec
 
-prettyPlusCase :: Precedence -> Term -> [(Term,Term)] -> Doc
+prettyPlusCase :: Precedence -> Term -> [(Term,Term)] -> Doc ann
 prettyPlusCase p e (a1:alts) =
     prettyParen (p > termCasePrec) $
         sep ([nest 2 (string "case" <+> prettyPlus e), nest 2 (string "of" <+> prettyPlusAlt a1)] ++ (map (\a -> nest 2 (text "|" <+> prettyPlusAlt a)) alts))
 
-prettyPlusAlt :: (Term, Term) -> Doc
+prettyPlusAlt :: (Term, Term) -> Doc ann
 -- nested case terms can produce parse ambiguities for |-alternatives. 
 -- Therefore we increase the precedence for e to cause parens for nested if/let/case
-prettyPlusAlt (p, e) = prettyPlus p <+> pretty "\\<Rightarrow>" </> prettyPlusTerm (termCasePrec+1) e
+prettyPlusAlt (p, e) = prettyPlus p <+> pretty "\\<Rightarrow>" `fillSep2` prettyPlusTerm (termCasePrec+1) e
 
-prettyPlusListTerm :: String -> [Term] -> String -> Doc
+prettyPlusListTerm :: String -> [Term] -> String -> Doc ann
 prettyPlusListTerm l ts r =
     if null ts 
        then -- make sure that there is no whitespace in empty lists, since that breaks Isabelle's parsing of [] lists
          string l <> string r
        else
-         nest 2 (fillSep ((string l):(punctuate comma $ map (prettyPlusTerm elPrec) ts))) </> string r
+         nest 2 (fillSep ((string l):(punctuate comma $ map (prettyPlusTerm elPrec) ts))) `fillSep2` string r
     where elPrec = if l == "\\<lparr>" then 0 else termAppPrec -- do not parenthesize elements in record term
 
 -- Insert a newline after the equiv operator
-prettyPlusEquiv :: Precedence -> Term -> Term -> Doc
-prettyPlusEquiv p t t' = prettyParen (p > p') $ prettyPlusTerm lp t <+> string (binOpRecSym b) <$> indent 2 (prettyPlusTerm rp t')
+prettyPlusEquiv :: Precedence -> Term -> Term -> Doc ann
+prettyPlusEquiv p t t' = prettyParen (p > p') $ prettyPlusTerm lp t <+> string (binOpRecSym b) `vsep2` indent 2 (prettyPlusTerm rp t')
     where
       b = termBinOpRec Equiv
       p' = binOpRecPrec b
@@ -440,13 +442,13 @@ prettyPlusEquiv p t t' = prettyParen (p > p') $ prettyPlusTerm lp t <+> string (
                   AssocLeft -> (p',p'+1)
                   AssocRight -> (p'+1, p')
 
-prettyPlusBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc
+prettyPlusBinOpTerm :: Precedence -> TermBinOp -> Term -> Term -> Doc ann
 prettyPlusBinOpTerm p b = prettyBinOp p prettyPlusTerm (termBinOpRec b) prettyPlusTerm
 
-prettyPlusUnOpTerm :: Precedence -> TermUnOp -> Term -> Doc
+prettyPlusUnOpTerm :: Precedence -> TermUnOp -> Term -> Doc ann
 prettyPlusUnOpTerm p u = prettyUnOp p (termUnOpRec u) prettyPlusTerm
 
-prettyPlusMetaImp :: Precedence -> Term -> Term -> Doc
+prettyPlusMetaImp :: Precedence -> Term -> Term -> Doc ann
 prettyPlusMetaImp p t t' = case t' of
   t'@(TermBinOp MetaImp _ _) -> go [t] t'
   _                   -> prettyPlusBinOpTerm p MetaImp t t'
@@ -458,12 +460,12 @@ prettyPlusMetaImp p t t' = case t' of
       (hsep . punctuate semi . map (prettyPlusTerm (p'+1)) . reverse $ ts) <>
       string "\\<rbrakk>" <+> string (termBinOpSym MetaImp) <+> prettyPlusTerm p' t
 
-prettyPlusQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc
+prettyPlusQuantifier :: Precedence -> Quantifier -> [Ident] -> Term -> Doc ann
 prettyPlusQuantifier p q is t = prettyParen (p > quantifierPrec q) $ string (quantifierSym q) <>
                               (hsep . map pretty $ is) <> char '.' <+> prettyPlus t
 
 class (Pretty t) => PrettyPlus t where
-    prettyPlus :: t -> Doc
+    prettyPlus :: t -> Doc ann
 
 instance PrettyPlus Term where
   prettyPlus = prettyPlusTerm 0

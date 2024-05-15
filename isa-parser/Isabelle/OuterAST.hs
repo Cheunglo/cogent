@@ -16,11 +16,13 @@ import Data.Data
 import Data.List
 -- import Data.Typeable
 import Text.Parsec.Expr (Assoc(..))
-import Text.PrettyPrint.ANSI.Leijen
+--import Text.PrettyPrint.ANSI.Leijen
+import Prettyprinter
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding ((<$>))
 #endif
 
+import Isabelle.PrettyAnsi
 import Isabelle.InnerAST (Arity, prettyTypeVars, Type(TyVar), PrettyPlus, prettyPlus)
 import Isabelle.PrettyHelper (BinOpRec(..), prettyBinOp)
 
@@ -180,22 +182,22 @@ methodBinOpRec b = case b of
 --
 -- Pretty printing
 --
-vsepPad :: [Doc] -> Doc
-vsepPad xs = empty <$$> vsep (intersperse empty xs) <$$> empty
+vsepPad :: [Doc ann] -> Doc ann
+vsepPad xs = empty `vcat2` vsep (intersperse empty xs) `vcat2` empty
 
-quote :: Doc -> Doc
+quote :: Doc ann -> Doc ann
 quote doc = char '"' <>  doc <> char '"'
 
 instance (Pretty terms, Pretty types) =>  Pretty (Theory types terms) where
-  pretty thy = (string "theory" <+> string (thyName thy)) <$$>
-                         pretty (thyImports thy) <$$>
-                         string "begin" <$$>
+  pretty thy = (string "theory" <+> string (thyName thy)) `vcat2`
+                         pretty (thyImports thy) `vcat2`
+                         string "begin" `vcat2`
                          prettyThyDecls (thyBody thy) <>
-                         string "end" <$$> empty
+                         string "end" `vcat2` empty
 
-prettyThyDecls :: (Pretty terms, Pretty types) => [TheoryDecl types terms] -> Doc
+prettyThyDecls :: (Pretty terms, Pretty types) => [TheoryDecl types terms] -> Doc ann
 prettyThyDecls [] = empty
-prettyThyDecls thyDecls = (vsepPad . map pretty $ thyDecls) <$$> empty
+prettyThyDecls thyDecls = (vsepPad . map pretty $ thyDecls) `vcat2` empty
 
 instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
   pretty d = case d of
@@ -214,16 +216,16 @@ instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
     TheoryString s      -> string s
 
 instance (Pretty terms, Pretty types) => Pretty (Context types terms) where
-  pretty (Context name cDecls) = string "context" <+> string name <+> string "begin" <$$> 
+  pretty (Context name cDecls) = string "context" <+> string name <+> string "begin" `vcat2` 
                                  prettyThyDecls cDecls <> string "end"
 
 instance (Pretty terms, Pretty types) => Pretty (Lemma types terms) where
   pretty (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_lemma" else "lemma") <+>
-    pretty thmDecl <+> string ":" <$$> indent 2 (vsep (map (quote . pretty) props)) <$$> indent 2 (pretty proof)
+    pretty thmDecl <+> string ":" `vcat2` indent 2 (vsep (map (quote . pretty) props)) `vcat2` indent 2 (pretty proof)
 
 instance (Pretty terms, Pretty types) => Pretty (Lemmas types terms) where
   pretty (Lemmas name lems) = string "lemmas" <+>
-    pretty name <+> string "=" <$$> indent 2 (vsep $ map pretty lems)
+    pretty name <+> string "=" `vcat2` indent 2 (vsep $ map pretty lems)
 
 instance (Pretty terms, Pretty types) => Pretty (TypeSyn types terms) where
   pretty (TypeSyn mbName typs tvs) = string "type_synonym" <+>
@@ -240,7 +242,7 @@ instance (Pretty terms, Pretty types) => Pretty (Consts types terms) where
 instance (Pretty terms, Pretty types) => Pretty (Record types terms) where
   pretty (Record rName rFields tvs) = string "record" <+>
     prettyTypeVars (map TyVar tvs) <+>
-    pretty rName <+> string "=" <$$> 
+    pretty rName <+> string "=" `vcat2` 
     (vsep (map (\rf -> let RecField n t = rf in indent 2 (pretty n <+> string "::" <+> (quote . pretty) t)) rFields))
 
 instance (Pretty terms, Pretty types) => Pretty (DTCons types terms) where
@@ -249,12 +251,12 @@ instance (Pretty terms, Pretty types) => Pretty (DTCons types terms) where
 instance (Pretty terms, Pretty types) => Pretty (Datatype types terms) where
   pretty (Datatype dtName dtCons tvs) = string "datatype" <+>
     prettyTypeVars (map TyVar tvs) <+>
-    pretty dtName <+> string "=" <$$> (vsep $ punctuate (char '|') $ map (indent 2 . pretty) dtCons)
+    pretty dtName <+> string "=" `vcat2` (vsep $ punctuate (char '|') $ map (indent 2 . pretty) dtCons)
 
 instance (Pretty terms, Pretty types) => Pretty (Class types terms) where
   pretty (Class spec body) = string "class" <+> pretty spec
-                               <$> string "begin" 
-                               <$> prettyThyDecls body <> string "end" <$> empty
+                               `vsep2` string "begin" 
+                               `vsep2` prettyThyDecls body <> string "end" `vsep2` empty
 
 instance (Pretty terms, Pretty types) => Pretty (ClassSpec types terms) where
   pretty ClassSpec = error "TODO: instance Pretty (ClassSpec types terms)"  -- TODO: zilinc
@@ -263,13 +265,13 @@ instance (Pretty terms, Pretty types) => Pretty (Instantiation types terms) wher
   pretty (Instantiation names arity body) = 
     string "instantiation" <+> sep (punctuate (string "and") (map pretty names))
     <+> string "::" <+> pretty arity
-    <$> string "begin" 
-    <$> prettyThyDecls body <> string "end" <$> empty
+    `vsep2` string "begin" 
+    `vsep2` prettyThyDecls body <> string "end" `vsep2` empty
 
 instance (Pretty terms, Pretty types) => Pretty (Instance types terms) where
   pretty (Instance head body) = 
     string "instance" <+> pretty head
-    <$> prettyThyDecls body
+    `vsep2` prettyThyDecls body
 
 instance Pretty InstanceHead where
   pretty (InstanceHeadNo) = empty
@@ -285,7 +287,7 @@ instance Pretty ClassRel where
 instance (Pretty types, Pretty terms) => Pretty (FunFunc types terms) where
   pretty (FunFunc sig bd) = (encloseSep empty empty (string "and" <> space) (map pretty sig)) -- FIXME: `and' on a new line / zilinc
                             <+> string "where"
-                            <$$> align (pretty bd)
+                            `vcat2` align (pretty bd)
 
 instance (Pretty types, Pretty terms) => Pretty (Equations types terms) where
   pretty (Equations terms) = vsep $ punctuate (space <> string "|") $ map (dquotes . pretty) terms
@@ -305,7 +307,7 @@ instance Pretty Attribute where
 
 instance Pretty Proof where
   pretty (Proof methods proofEnd) =
-    (vsep . map (\m -> string "apply" <+> pretty m) $ methods) <$$> pretty proofEnd
+    (vsep . map (\m -> string "apply" <+> pretty m) $ methods) `vcat2` pretty proofEnd
 
 instance Pretty ProofEnd where
   pretty e = string $ case e of
@@ -320,7 +322,7 @@ prettyMethodTopLevel p m = case m of
   MethodModified m mm -> (parens $ prettyMethod p m) <> pretty mm
   _                   -> parens $ prettyMethod p m
 
-prettyMethod :: Int -> Method -> Doc
+prettyMethod :: Int -> Method -> Doc ann
 prettyMethod p m = case m of
     Method name args ->
       hsep . map string $ name:args
@@ -335,19 +337,19 @@ instance Pretty MethodModifier where
     MMGoalRestriction mbI -> brackets $ maybe empty (string . show) $ mbI
 
 instance (Pretty terms, Pretty types) => Pretty (Def types terms) where
-  pretty def = string "definition" <> mbSig <$$> indent 2 (quote (pretty (defTerm def)))
+  pretty def = string "definition" <> mbSig `vcat2` indent 2 (quote (pretty (defTerm def)))
     where mbSig = case defSig def of 
-                    Just sig -> empty <$$> indent 2 (pretty sig) <$$> string "where" 
+                    Just sig -> empty `vcat2` indent 2 (pretty sig) `vcat2` string "where" 
                     Nothing  -> empty
 
 prettyOv specDef sig = string "overloading" <> mbSig
-                  <$$> string "begin"
-                  <$$> indent 2 mbDefn
-                  <$$> string "end"
+                  `vcat2` string "begin"
+                  `vcat2` indent 2 mbDefn
+                  `vcat2` string "end"
     where mbSig = case defSig specDef of 
                     Just specSig ->
                       empty
-                        <$$> indent 2 (pretty specSig)
+                        `vcat2` indent 2 (pretty specSig)
                           <> string " \\<equiv> "
                           <> pretty sig
                     _ -> empty
@@ -364,7 +366,7 @@ instance Pretty types => Pretty (Sig types) where
                     Nothing  -> empty
 
 instance (Pretty terms, Pretty types) => Pretty (Abbrev types terms) where
-  pretty a = string "abbreviation" <+> mbSig <$$> pretty (abbrevTerm a)
+  pretty a = string "abbreviation" <+> mbSig `vcat2` pretty (abbrevTerm a)
     where mbSig = case abbrevSig a of 
                     Just sig -> pretty sig <+> string "where" 
                     Nothing  -> empty
@@ -375,15 +377,15 @@ instance Pretty TheoryImports where
 -- improved PrettyPlus for theories
 
 instance (PrettyPlus terms, Pretty types) =>  PrettyPlus (Theory types terms) where
-  prettyPlus thy = (string "theory" <+> string (thyName thy)) <$$>
-                         pretty (thyImports thy) <$$>
-                         string "begin" <$$>
+  prettyPlus thy = (string "theory" <+> string (thyName thy)) `vcat2`
+                         pretty (thyImports thy) `vcat2`
+                         string "begin" `vcat2`
                          prettyPlusThyDecls (thyBody thy) <>
-                         string "end" <$$> empty
+                         string "end" `vcat2` empty
 
-prettyPlusThyDecls :: (PrettyPlus terms, Pretty types) => [TheoryDecl types terms] -> Doc
+prettyPlusThyDecls :: (PrettyPlus terms, Pretty types) => [TheoryDecl types terms] -> Doc ann
 prettyPlusThyDecls [] = empty
-prettyPlusThyDecls thyDecls = (vsepPad . map prettyPlus $ thyDecls) <$$> empty
+prettyPlusThyDecls thyDecls = (vsepPad . map prettyPlus $ thyDecls) `vcat2` empty
 
 -- only the printing of terms in definitions is modified
 
@@ -404,9 +406,9 @@ instance (PrettyPlus terms, Pretty types) => PrettyPlus (TheoryDecl types terms)
     TheoryString s      -> string s
 
 instance (PrettyPlus terms, Pretty types) => PrettyPlus (Def types terms) where
-  prettyPlus def = string "definition" <> mbSig <$$> indent 2 (quote (prettyPlus (defTerm def)))
+  prettyPlus def = string "definition" <> mbSig `vcat2` indent 2 (quote (prettyPlus (defTerm def)))
     where mbSig = case defSig def of 
-                    Just sig -> empty <$$> indent 2 (pretty sig) <$$> string "where" 
+                    Just sig -> empty `vcat2` indent 2 (pretty sig) `vcat2` string "where" 
                     Nothing  -> empty
 
 -- smart constructor
