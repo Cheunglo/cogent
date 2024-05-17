@@ -15,7 +15,9 @@ import Data.Monoid
 #endif
 import Data.Word
 import GHC.Generics (Generic)
-import Text.PrettyPrint.ANSI.Leijen
+--import Text.PrettyPrint.ANSI.Leijen
+import Prettyprinter
+import Isabelle.PrettyAnsi
 
 type RepName     = String
 type DataLayoutName = RepName -- For gradual transition to eliminate Rep from the compiler
@@ -135,6 +137,8 @@ opSymbol Complement = "complement"
 
 instance Pretty Op where
   pretty = string . opSymbol
+
+instance PrettyAnsi Op
 
 data Likelihood = Unlikely | Regular | Likely deriving (Show, Data, Eq, Ord)
 

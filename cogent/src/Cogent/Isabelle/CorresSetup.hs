@@ -16,11 +16,13 @@ import Cogent.Compiler
 import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
 import System.FilePath (takeBaseName, (</>))
-import qualified Text.PrettyPrint.ANSI.Leijen as L
+--import qualified Text.PrettyPrint.ANSI.Leijen as L
+import qualified Prettyprinter as L
+import qualified Isabelle.PrettyAnsi as N
 
-corresSetup :: String -> String -> String -> L.Doc
+corresSetup :: String -> String -> String -> L.Doc ann
 corresSetup thy cfile log =
-  let header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+  let header = (N.string ("(*\n" ++ log ++ "\n*)\n") `N.vsep2`)
       theory = Theory { thyName = thy ++ __cogent_suffix_of_corres_setup
                       , thyImports = imports thy
                       , thyBody = (:[]) . TheoryString . unlines $

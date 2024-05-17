@@ -37,7 +37,7 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans as T
 import Data.Monoid ((<>))
-import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
+--import Text.PrettyPrint.ANSI.Leijen (text, (<+>), (<$$>))
 
 -- | Intuitively a @Rewrite a@ is a partial function from @a@ to @a@.
 --   It can be composed disjuctively using the 'Semigroup' instance, or

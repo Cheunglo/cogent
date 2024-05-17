@@ -27,7 +27,9 @@ import Data.Map as M
 import Data.Monoid
 #endif
 import GHC.Generics (Generic)
-import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
+--import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
+import Prettyprinter hiding (tupled, ident)
+import Isabelle.PrettyAnsi
 
 type ReadOnly = Bool  -- True for r/o
 
@@ -97,7 +99,10 @@ isSubtypePrim Boolean Boolean = True
 isSubtypePrim _ _ = False
 
 instance Pretty PrimInt where
-  pretty = blue . bold . string . show
+  pretty = string . show
+
+instance PrettyAnsi PrimInt where
+  prettyAnsi = blue . annBf . pretty
 
 data Kind = K { canEscape :: Bool, canShare :: Bool, canDiscard :: Bool }
   deriving (Show, Data, Eq, Ord)

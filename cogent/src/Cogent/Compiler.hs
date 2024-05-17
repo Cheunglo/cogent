@@ -25,7 +25,11 @@ import System.Directory (doesFileExist, getCurrentDirectory, removeFile)
 import System.FilePath
 import System.IO
 import System.IO.Unsafe
-import Text.PrettyPrint.ANSI.Leijen (Doc, displayIO, plain, renderPretty)
+--import Text.PrettyPrint.ANSI.Leijen (Doc, displayIO, plain, renderPretty)
+import Prettyprinter (Doc(..))
+import Prettyprinter.Render.Terminal (AnsiStyle)
+import Isabelle.PrettyAnsi (plain, displayIO, renderPretty)
+
 
 __impossible :: String -> a
 __impossible msg = error $ msg ++ unlines [ ": the 'impossible' happened!"
@@ -972,7 +976,7 @@ postDump = readIORef __cogent_dump_handle >>= \h ->
                     (not <$> hIsTerminalDevice h)) $
              (hClose =<< readIORef __cogent_dump_handle)
 
-dumpMsgIfTrue :: Bool -> Doc -> IO ()
+dumpMsgIfTrue :: Bool -> Doc AnsiStyle -> IO ()
 dumpMsgIfTrue dumpOn d
   | dumpOn = do
       h <- readIORef __cogent_dump_handle
@@ -981,6 +985,6 @@ dumpMsgIfTrue dumpOn d
       hFlush h
   | otherwise = return ()
 
-dumpTcMsg :: Doc -> IO ()
+dumpTcMsg :: Doc AnsiStyle -> IO ()
 dumpTcMsg = dumpMsgIfTrue __cogent_ddump_tc
 

@@ -13,7 +13,10 @@ import Data.Binary
 import Data.PropEq
 import GHC.Generics (Generic)
 
-import qualified Text.PrettyPrint.ANSI.Leijen as L
+--import qualified Text.PrettyPrint.ANSI.Leijen as L
+import qualified Prettyprinter as L
+import qualified Isabelle.PrettyAnsi as N
+
 
 data Nat = Zero | Suc Nat
   deriving (Show, Eq, Ord, Generic)
@@ -44,7 +47,10 @@ s1 = SSuc s0
 s2 = SSuc s1
 
 instance L.Pretty (SNat n) where
-    pretty = L.dullred . L.string . ('S':) . show . toInt
+    pretty = N.string . ('S':) . show . toInt
+
+instance N.PrettyAnsi (SNat n) where
+    prettyAnsi = N.dullred . L.pretty
 
 --
 -- Functions

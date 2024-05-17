@@ -18,11 +18,13 @@ import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
 
 import System.FilePath ((</>), takeBaseName)
-import qualified Text.PrettyPrint.ANSI.Leijen as L
+--import qualified Text.PrettyPrint.ANSI.Leijen as L
+import Prettyprinter as L
+import Isabelle.PrettyAnsi as P
 
-allRefine :: FilePath -> String -> L.Doc
+allRefine :: FilePath -> String -> L.Doc ann
 allRefine source log =
-  let header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+  let header = (P.string ("(*\n" ++ log ++ "\n*)\n") `P.vsep2`)
   in header $ L.pretty (Theory arthy imports body :: O.Theory I.Type I.Term)
   where
     imports = TheoryImports [ thy ++ __cogent_suffix_of_normal_proof

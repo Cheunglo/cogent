@@ -47,7 +47,6 @@ import Data.Monoid
 import Data.Traversable
 import GHC.Generics (Generic, Rep, V1)
 import Prelude hiding (length, repeat, splitAt, take, unzip, zip, zipWith)
-import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 data Fin :: Nat -> * where
   FZero :: Fin ('Suc n)

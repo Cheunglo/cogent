@@ -30,7 +30,10 @@ import Control.Monad.State
 -- import Control.Monad.Writer
 -- import Data.Function ((&))
 -- import System.IO
-import Text.PrettyPrint.ANSI.Leijen as L hiding (indent)
+--import Text.PrettyPrint.ANSI.Leijen as L hiding (indent)
+import Prettyprinter hiding (indent)
+import Prettyprinter.Render.Terminal
+import Isabelle.PrettyAnsi
 import Lens.Micro
 import Lens.Micro.Mtl
 
@@ -43,18 +46,18 @@ import Lens.Micro.Mtl
 
 indent = nest 2
 
-traceTc :: MonadIO m => String -> Doc -> m ()
+traceTc :: MonadIO m => String -> Doc AnsiStyle -> m ()
 traceTc s d = traceTcBracket s d (return ()) (const empty)
 
 traceTc' :: MonadIO m => String -> String -> m ()
 traceTc' s = traceTc s . text
 
-traceTcBracket :: MonadIO m => String -> Doc -> m a -> (a -> Doc) -> m a
+traceTcBracket :: MonadIO m => String -> Doc AnsiStyle -> m a -> (a -> Doc AnsiStyle) -> m a
 traceTcBracket s d1 m f
   | Just ws <- __cogent_ddump_tc_filter, s `notElem` ws = m
   | otherwise = do
       liftIO . dumpTcMsg $ indent (text ("[dump-tc/" ++ s ++ "]") <+> d1)
       a <- m
-      liftIO . dumpTcMsg $ indent (f a) L.<$> line
+      liftIO . dumpTcMsg $ indent (f a) `vsep2` line
       return a
 

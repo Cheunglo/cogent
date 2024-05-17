@@ -8,8 +8,7 @@
 -- @TAG(NICTA_GPL)
 --
 
-module Isabelle.Main
-where
+module Main where
 
 -- system imports
 import System.Environment
@@ -17,7 +16,9 @@ import System.Exit
 import Text.Printf
 import Text.Parsec
 import Text.Parsec.String
-import Text.PrettyPrint.ANSI.Leijen
+import Prettyprinter
+import Prettyprinter.Render.Terminal
+--import Text.PrettyPrint.ANSI.Leijen
 
 -- friends
 import Isabelle.Parser

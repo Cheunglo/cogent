@@ -47,7 +47,6 @@ import Data.Monoid
 import Data.Traversable
 -- import GHC.Generics (Generic)
 import Prelude hiding (length, repeat, splitAt, take, unzip, zip, zipWith)
-import qualified Text.PrettyPrint.ANSI.Leijen as L
 
 data Vec :: Nat -> * -> * where
   Nil :: Vec 'Zero a

@@ -11,7 +11,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Isabelle.TestTH where
 
-import Text.PrettyPrint.ANSI.Leijen
+--import Text.PrettyPrint.ANSI.Leijen
+import Prettyprinter
+import Prettyprinter.Render.Terminal
 import Isabelle.InnerAST
 import Isabelle.OuterAST
 import Isabelle.ExprTH

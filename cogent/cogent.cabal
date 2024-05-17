@@ -177,7 +177,8 @@ library
               , Version_cogent
 
   build-depends:
-                ansi-wl-pprint >= 0.6
+                --ansi-wl-pprint >= 0.6
+                prettyprinter >= 1.7.0
               , prettyprinter-ansi-terminal >= 1.1.3
               , base >= 4.10
               --&& < 4.17
@@ -224,7 +225,9 @@ library
     cpp-options: -DREFINEMENT_TYPES
   if flag(docgent)
     cpp-options: -DWITH_DOCGENT
-    build-depends: ansi-terminal >= 0.6
+    build-depends:
+                   --ansi-terminal >= 0.6
+                   prettyprinter >= 1.7.0
                  , prettyprinter-ansi-terminal >= 1.1.3
                  , pandoc >= 1.19.2.4
                  , pandoc-types >= 1.16
@@ -259,7 +262,8 @@ Executable cogent
 
   build-depends:
                 cogent
-              , ansi-wl-pprint >= 0.6
+              --, ansi-wl-pprint >= 0.6
+              , prettyprinter >= 1.7.0
               , prettyprinter-ansi-terminal >= 1.1.3
               , atomic-write >= 0.2.0.4
               , base >= 4.10 
@@ -342,5 +346,6 @@ test-suite test-quickcheck
               , QuickCheck >= 2.11.3
               , transformers
               , mtl >= 2.2.1
-              , ansi-wl-pprint >= 0.6
+              --, ansi-wl-pprint >= 0.6
+              , prettyprinter >= 1.7.0
               , prettyprinter-ansi-terminal >= 1.1.3
