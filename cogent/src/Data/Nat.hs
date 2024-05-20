@@ -46,11 +46,8 @@ s0 = SZero
 s1 = SSuc s0
 s2 = SSuc s1
 
-instance L.Pretty (SNat n) where
-    pretty = N.string . ('S':) . show . toInt
-
 instance N.PrettyAnsi (SNat n) where
-    prettyAnsi = N.dullred . L.pretty
+    ansiP = N.dullred . N.string . ('S':) . show . toInt
 
 --
 -- Functions

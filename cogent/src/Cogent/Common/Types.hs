@@ -98,11 +98,8 @@ isSubtypePrim U64 U64 = True
 isSubtypePrim Boolean Boolean = True
 isSubtypePrim _ _ = False
 
-instance Pretty PrimInt where
-  pretty = string . show
-
 instance PrettyAnsi PrimInt where
-  prettyAnsi = blue . annBf . pretty
+  ansiP = blue . annBf . string . show
 
 data Kind = K { canEscape :: Bool, canShare :: Bool, canDiscard :: Bool }
   deriving (Show, Data, Eq, Ord)

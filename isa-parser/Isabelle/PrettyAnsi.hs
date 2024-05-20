@@ -1,12 +1,93 @@
 module Isabelle.PrettyAnsi where
 
+import Control.Applicative
+import Data.Int
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.Maybe
+import Data.String (IsString (..))
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as Lazy
+import Data.Void
+import Data.Word
 import Prettyprinter
 import Prettyprinter.Render.Terminal
 import System.IO
 
-class (Pretty a) => (PrettyAnsi a) where
-    prettyAnsi :: a -> Doc AnsiStyle
-    prettyAnsi x = pretty x
+class PrettyAnsi a where
+    ansiP :: a -> Doc AnsiStyle
+    ansiPList :: [a] -> Doc AnsiStyle
+    ansiPList = align . list . map ansiP
+    {-# MINIMAL ansiP #-}
+
+instance PrettyAnsi a => PrettyAnsi (Const a b) where
+    ansiP = ansiP . getConst
+
+#if FUNCTOR_IDENTITY_IN_BASE
+instance PrettyAnsi a => PrettyAnsi (Identity a) where
+    ansiP = ansiP . runIdentity
+#endif
+
+instance PrettyAnsi a => PrettyAnsi [a] where
+    ansiP = ansiPList
+
+instance PrettyAnsi a => PrettyAnsi (NonEmpty a) where
+    ansiP (x:|xs) = ansiPList (x:xs)
+
+instance PrettyAnsi () where
+    ansiP = pretty
+
+instance PrettyAnsi Bool where
+    ansiP = pretty
+
+instance PrettyAnsi Char where
+    ansiP = pretty
+
+#ifdef MIN_VERSION_text
+    ansiPList = ansiP . (id :: Text -> Text) . fromString
+#else
+    ansiPList = vsep . map unsafeTextWithoutNewlines . T.splitOn "\n"
+#endif
+
+
+instance PrettyAnsi Int    where ansiP = pretty
+instance PrettyAnsi Int8   where ansiP = pretty
+instance PrettyAnsi Int16  where ansiP = pretty
+instance PrettyAnsi Int32  where ansiP = pretty
+instance PrettyAnsi Int64  where ansiP = pretty
+instance PrettyAnsi Word   where ansiP = pretty
+instance PrettyAnsi Word8  where ansiP = pretty
+instance PrettyAnsi Word16 where ansiP = pretty
+instance PrettyAnsi Word32 where ansiP = pretty
+instance PrettyAnsi Word64 where ansiP = pretty
+
+instance PrettyAnsi Integer where ansiP = pretty
+
+#if NATURAL_IN_BASE
+instance PrettyAnsi Natural where ansiP = pretty
+#endif
+
+instance PrettyAnsi Float where ansiP = pretty
+
+instance PrettyAnsi Double where ansiP = pretty
+
+instance (PrettyAnsi a1, PrettyAnsi a2) => PrettyAnsi (a1,a2) where
+    ansiP (x1,x2) = tupled [ansiP x1, ansiP x2]
+
+instance (PrettyAnsi a1, PrettyAnsi a2, PrettyAnsi a3) => PrettyAnsi (a1,a2,a3) where
+    ansiP (x1,x2,x3) = tupled [ansiP x1, ansiP x2, ansiP x3]
+
+instance PrettyAnsi a => PrettyAnsi (Maybe a) where
+    ansiP = maybe mempty ansiP
+    ansiPList = ansiPList . catMaybes
+
+#ifdef MIN_VERSION_text
+instance PrettyAnsi Text where ansiP = pretty
+
+instance PrettyAnsi Lazy.Text where ansiP = ansiP . Lazy.toStrict
+#endif
+
+instance PrettyAnsi Void where ansiP = pretty
 
 char :: Char -> Doc ann
 char c = pretty c
@@ -27,6 +108,11 @@ empty :: Doc ann
 empty = emptyDoc
 
 -- <$>, <$$>, </>, <//> are special cases of vsep, vcat, fillSep, fillCat with only two documents.
+--infixr 5 </>,<//>,<$>,<$$>
+infixr 5 `fillSep2`
+infixr 5 `fillCat2`
+infixr 5 `vsep2`
+infixr 5 `vcat2`
 
 -- <$> == \x y -> vsep [x, y]
 vsep2 :: Doc ann -> Doc ann -> Doc ann
@@ -52,6 +138,9 @@ displayIO = renderIO
 
 renderPretty :: Double -> Int -> Doc ann -> SimpleDocStream ann
 renderPretty x y = layoutSmart LayoutOptions { layoutPageWidth = AvailablePerLine y x }
+
+renderSmart :: Double -> Int -> Doc ann -> SimpleDocStream ann
+renderSmart x y = layoutSmart LayoutOptions { layoutPageWidth = AvailablePerLine y x }
 
 annBf :: Doc AnsiStyle -> Doc AnsiStyle
 annBf = annotate bold

@@ -47,8 +47,6 @@ import           Data.Maybe
 import qualified Data.Set as S
 import           Lens.Micro
 
-import Text.PrettyPrint.ANSI.Leijen (plain, pretty)
-
 import           Debug.Trace
 
 onGoal :: (Monad m) => (Constraint -> MaybeT m [Constraint]) -> Goal -> MaybeT m [Goal]

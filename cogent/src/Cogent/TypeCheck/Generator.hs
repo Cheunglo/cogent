@@ -55,8 +55,11 @@ import Data.Maybe (catMaybes, isNothing, isJust)
 import Data.Monoid ((<>))
 import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
-import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>), bool)
-import qualified Text.PrettyPrint.ANSI.Leijen as L
+--import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>), bool)
+--import qualified Text.PrettyPrint.ANSI.Leijen as L
+import Prettyprinter hiding ((<>))
+import Prettyprinter.Render.Terminal
+import Isabelle.PrettyAnsi
 import Lens.Micro.TH
 import Lens.Micro
 import Lens.Micro.Mtl
@@ -94,7 +97,7 @@ validateType' t = do
   vs <- use knownTypeVars
   ts <- lift $ use knownTypes
   lvs <- use knownDataLayoutVars
-  traceTc "gen" (text "validate type" <+> pretty t)
+  traceTc "gen" (text "validate type" <+> ansiP t)
   case t of
     TVar v b u  | v `notElem` vs -> freshTVar (BlockedByType (RT t) ?loc) >>=
                                     \t' -> return (Unsat $ UnknownTypeVariable v, t')
@@ -139,27 +142,27 @@ validateType' t = do
 #ifdef BUILTIN_ARRAYS
     TArray te l s tkns -> do
       x <- freshEVar (T u32) (TermInType l (RT t) ?loc)
-      traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
-                     text "is" <+> pretty x)
+      traceTc "gen" (text "unifier for array length" <+> ansiP l `vsep2` 
+                     text "is" <+> ansiP x)
       (cl,l') <- cg (rawToLocE ?loc l) (T u32)
       let l'' = toTCSExpr l'
       (ctkn,mhole) <- case tkns of
         [] -> return (Sat, Nothing)
         [(i,True)] -> do
           y <- freshEVar (T u32) (TermInType i (RT t) ?loc)
-          traceTc "gen" (text "unifier for array hole" <+> pretty i L.<$>
-                         text "is" <+> pretty y)
+          traceTc "gen" (text "unifier for array hole" <+> ansiP i `vsep2`
+                         text "is" <+> ansiP y)
           (ci,i') <- cg (rawToLocE ?loc i) (T u32)
           let c = toTCSExpr i' :==: y
                -- <> Arith (SE (T bool) (PrimOp ">=" [y, SE (T u32) (IntLit 0)]))
                <> Arith (SE (T bool) (PrimOp "<" [y, l'']))
-          traceTc "gen" (text "cg for array hole" <+> pretty i L.<$>
+          traceTc "gen" (text "cg for array hole" <+> ansiP i `vsep2`
                          text "generate constraint" <+> prettyC (c <> ci))
           return (c <> ci, Just y)
         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
       let cl' = Arith (SE (T bool) (PrimOp ">=" [l'', SE (T u32) (IntLit 0)]))
              <> toTCSExpr l' :==: x
-      traceTc "gen" (text "cg for array length" <+> pretty l' L.<$>
+      traceTc "gen" (text "cg for array length" <+> ansiP l' `vsep2`
                      text "generate constraint" <+> prettyC (cl <> cl'))
       (cs, s') <- cgSigil s
       (c,te') <- validateType te
@@ -171,7 +174,7 @@ validateType' t = do
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
         return (ce <> toTCSExpr e' :==: x, e', x)
       let (ces,es',xs) = unzip3 blob
-      traceTc "gen" (text "cg for @take" <+> parens (prettyList es) L.<$>
+      traceTc "gen" (text "cg for @take" <+> parens (ansiPList es) `vsep2`
                      text "generate constraint" <+> prettyC (mconcat ces))
       (ct,tarr') <- validateType tarr
       return (mconcat ces <> ct, T $ TATake xs tarr')
@@ -182,7 +185,7 @@ validateType' t = do
         (ce,e') <- cg (rawToLocE ?loc e) (T u32)
         return (ce <> toTCSExpr e' :==: x, e', x)
       let (ces,es',xs) = unzip3 blob
-      traceTc "gen" (text "cg for @put" <+> parens (prettyList es) L.<$>
+      traceTc "gen" (text "cg for @put" <+> parens (ansiPList es) `vsep2`
                      text "generate constraint" <+> prettyC (mconcat ces))
       (ct,tarr') <- validateType tarr
       return (mconcat ces <> ct, T $ TAPut xs tarr')
@@ -198,7 +201,7 @@ validateType' t = do
       let unused = flip foldMap (M.toList rs) $ \(v,(_,_,us)) ->
             case us of Seq.Empty -> warnToConstraint __cogent_wunused_local_binds (UnusedLocalBind v); _ -> Sat
           c = ct <> ce <> unused
-      traceTc "gen" (text "cg for reftype" L.<$>
+      traceTc "gen" (text "cg for reftype" `vsep2`
                      text "generate constraint" <+> prettyC c)
       return (c, T $ TRefine v t' (toTCSExpr e'))
 #endif
@@ -330,7 +333,7 @@ cg' (PrimOp _ _) _ = __impossible "cg': unimplemented primops"
 cg' (Var n) t = do
   let e = Var n  -- it has a different type than the above `Var n' pattern
   ctx <- use context
-  traceTc "gen" (text "cg for variable" <+> pretty n L.<$> text "of type" <+> pretty t)
+  traceTc "gen" (text "cg for variable" <+> ansiP n `vsep2` text "of type" <+> ansiP t)
   case C.lookup n ctx of
     -- Variable not found, see if the user meant a function.
     Nothing ->
@@ -342,15 +345,15 @@ cg' (Var n) t = do
     Just (t', _, Seq.Empty) -> do
       context %= C.use n ?loc
       let c = t' :< t
-      traceTc "gen" (text "variable" <+> pretty n <+> text "used for the first time" <> semi
-               L.<$> text "generate constraint" <+> prettyC c)
+      traceTc "gen" (text "variable" <+> ansiP n <+> text "used for the first time" <> semi
+               `vsep2` text "generate constraint" <+> prettyC c)
       return (c, e)
 
     -- Variable already used before, emit a Share constraint.
     Just (t', p, us)  -> do
       context %= C.use n ?loc
-      traceTc "gen" (text "variable" <+> pretty n <+> text "used before" <> semi
-               L.<$> text "generate constraint" <+> prettyC (t' :< t) <+> text "and share constraint")
+      traceTc "gen" (text "variable" <+> ansiP n <+> text "used before" <> semi
+               `vsep2` text "generate constraint" <+> prettyC (t' :< t) <+> text "and share constraint")
       return (Share t' (Reused n p us) <> t' :< t, e)
 
 cg' (Upcast e) t = do
@@ -395,8 +398,8 @@ cg' (ArrayLit es) t = do
   let (cs,es') = unzip blob
       n = SE (T u32) (IntLit . fromIntegral $ length es)
       cz = Arith (SE (T bool) (PrimOp ">" [n, SE (T u32) (IntLit 0)]))
-  traceTc "gen" (text "cg for array literal length" L.<$>
-                 text "generate constraint" <+> prettyC cz L.<$>
+  traceTc "gen" (text "cg for array literal length" `vsep2`
+                 text "generate constraint" <+> prettyC cz `vsep2`
                  text "which should always be trivially true")
   return (mconcat cs <> cz <> (A alpha n (Left Unboxed) (Left Nothing)) :< t, ArrayLit es')
 
@@ -420,9 +423,9 @@ cg' (ArrayIndex e i) t = do
         -- <> Arith (SE (T bool) (PrimOp "/=" [toTCSExpr i', idx]))
         -- <> Arith (SE (PrimOp ">=" [toSExpr i, SE (IntLit 0)]))  -- as we don't have negative values
   traceTc "gen" (text "array indexing" <> colon
-                 L.<$> text "index is" <+> pretty (stripLocE i) <> semi
-                 L.<$> text "upper bound (excl.) is" <+> pretty n <> semi
-                 L.<$> text "generate constraint" <+> prettyC c)
+                 `vsep2` text "index is" <+> ansiP (stripLocE i) <> semi
+                 `vsep2` text "upper bound (excl.) is" <+> ansiP n <> semi
+                 `vsep2` text "generate constraint" <+> prettyC c)
   return (ce <> ci <> c, ArrayIndex e' i')
 
 cg' (ArrayMap2 ((p1,p2), fbody) (arr1,arr2)) t = __fixme $ do  -- FIXME: more accurate constraints / zilinc
@@ -462,11 +465,11 @@ cg' (ArrayPut arr [(idx,v)]) t = do
           -- , Arith (SE (T bool) (PrimOp ">=" [idx', SE (IntLit 0)]))
           , Arith (SE (T bool) (PrimOp "<" [toTCSExpr idx', l]))
           ]
-  traceTc "gen" (text "cg for array put" L.<$>
-                 text "elemenet type is" <+> pretty alpha L.<$>
-                 text "array type is" <+> pretty sigma L.<$>
-                 text "length is" <+> pretty l L.<$>
-                 text "sigil is" <+> pretty s L.<$>
+  traceTc "gen" (text "cg for array put" `vsep2`
+                 text "elemenet type is" <+> ansiP alpha `vsep2`
+                 text "array type is" <+> ansiP sigma `vsep2`
+                 text "length is" <+> ansiP l `vsep2`
+                 text "sigil is" <+> ansiP s `vsep2`
                  text "generate constraint" <+> prettyC (mconcat c))
   return (mconcat c, ArrayPut arr' [(idx',v')])
 cg' (ArrayPut arr ivs) t = do
@@ -516,7 +519,7 @@ cg' exp@(Lam pat mt e) t = do
   unless (null fvs') $ __todo "closures not implemented"
   unless (null fvs') $ context .= ctx
   traceTc "gen" (text "lambda expression" <+> prettyE lam
-           L.<$> text "generate constraint" <+> prettyC c <> semi)
+           `vsep2` text "generate constraint" <+> prettyC c <> semi)
   return (c,lam)
 
 cg' (App e1 e2 _) t = do
@@ -548,8 +551,8 @@ cg' (Con k [e]) t =  do
   let e = Con k [e']
       c = V (Row.incomplete [Row.mkEntry k alpha False] x) :< t
   traceTc "gen" (text "cg for constructor:" <+> prettyE e
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c)
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
 cg' (Con k []) t = cg' (Con k [LocExpr ?loc $ Unitel]) t
 cg' (Con k es) t = cg' (Con k [LocExpr ?loc $ Tuple es]) t
@@ -559,8 +562,8 @@ cg' (Tuple es) t = do
   let e = Tuple es'
       c = T (TTuple ts) :< t
   traceTc "gen" (text "cg for tuple:" <+> prettyE e
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c)
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
 
 cg' (UnboxedRecord fes) t = do
@@ -571,8 +574,8 @@ cg' (UnboxedRecord fes) t = do
       r = R None (Row.complete $ zipWith3 mkEntry fs ts (repeat False)) (Left Unboxed)
       c = r :< t
   traceTc "gen" (text "cg for unboxed record:" <+> prettyE e
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c)
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c)
   return (c' <> c, e)
 
 cg' (Seq e1 e2) t = do
@@ -612,9 +615,9 @@ cg' (TLApp f ts ls i) t = do
           rc = rt :< t
           re = TLApp f (Just . snd <$> tps) (Just . snd <$> lps) i
       traceTc "gen" (text "cg for tlapp:" <+> prettyE re
-               L.<$> text "of type" <+> pretty t <> semi
-               L.<$> text "type signature is" <+> pretty (PT tvs lvs tau) <> semi
-               L.<$> text "generate constraint" <+> prettyC rc)
+               `vsep2` text "of type" <+> ansiP t <> semi
+               `vsep2` text "type signature is" <+> ansiP (PT tvs lvs tau) <> semi
+               `vsep2` text "generate constraint" <+> prettyC rc)
       return (ct <> cl <> cts <> cls <> rc, re)
     Nothing -> do
       let e = TLApp f ts' ls' i
@@ -632,8 +635,8 @@ cg' (Member e f) t =  do
       x = R rp row (Right sigil)
       c = alpha :< x <> Drop x (UsedInMember f)
   traceTc "gen" (text "cg for member:" <+> prettyE f'
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c)
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c)
   return (c' <> c, f')
 
 -- FIXME: This is very hacky. But since we don't yet have implications in our
@@ -663,7 +666,7 @@ cg' (MultiWayIf es el) t = do
       e' = MultiWayIf (zipWith3 (\(_,bs,l,_) cond' e' -> (cond',bs,l,e')) es conds' es') el'
       c' = c <> mconcat cconds <> mconcat ces <> cel
   traceTc "gen" (text "cg for multiway-if:" <+> prettyE e'
-           L.<$> text "generate constraints:" <+> prettyC c')
+           `vsep2` text "generate constraints:" <+> prettyC c')
   return (c',e')
 
 cg' (Put e ls) t | not (any isNothing ls) = do
@@ -680,8 +683,8 @@ cg' (Put e ls) t | not (any isNothing ls) = do
           NotReadOnly (Right sigil)
       r = Put e' (map Just (zip fs es'))
   traceTc "gen" (text "cg for put:" <+> prettyE r
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint:" <+> prettyC c)
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint:" <+> prettyC c)
   return (c <> c' <> cs, r)
 
   | otherwise = first (<> Unsat RecordWildcardsNotSupported) <$> cg' (Put e (filter isJust ls)) t
@@ -704,8 +707,8 @@ cg' (Annot e tau) t = do
   let tau' = stripLocT tau
   (c, t') <- do (ctau,tau'') <- validateType tau'
                 traceTc "gen" (text "cg for type annotation"
-                               L.<$> text "generate constraint" <+> prettyC (tau'' :< t)
-                               L.<$> text "and others")
+                               `vsep2` text "generate constraint" <+> prettyC (tau'' :< t)
+                               `vsep2` text "and others")
                 return (ctau <> tau'' :< t, tau'')
   (c', e') <- cg e t'
   return (c <> c', Annot e' t')
@@ -736,9 +739,9 @@ matchA' (PCon k [i]) t = do
       c' = t :< V row
       row' = Row.incomplete [Row.mkEntry k beta True] rest
 
-  traceTc "gen" (text "match constructor pattern:" <+> pretty (PCon k [i'])
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c)
+  traceTc "gen" (text "match constructor pattern:" <+> ansiP (PCon k [i'])
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c)
   return (s, c <> c', PCon k [i'], V row')
 matchA' (PCon k []) t = matchA' (PCon k [LocIrrefPatn ?loc PUnitel]) t
 matchA' (PCon k is) t = matchA' (PCon k [LocIrrefPatn ?loc (PTuple is)]) t
@@ -771,7 +774,7 @@ match' :: (?loc :: SourcePos)
 match' (PVar x) t = do
   let p = PVar (x,t)
   traceTc "gen" (text "match var pattern:" <+> prettyIP p
-           L.<$> text "of type" <+> pretty t)
+           `vsep2` text "of type" <+> ansiP t)
   return (M.fromList [(x, (t,?loc,Seq.empty))], Sat, p)
 
 match' (PUnderscore) t =
@@ -789,8 +792,8 @@ match' (PTuple ps) t = do
              _          -> Sat
       c = t :< T (TTuple vs)
   traceTc "gen" (text "match tuple pattern:" <+> prettyIP p'
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c)
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c)
   return (M.unions ss, co <> mconcat cs <> c, p')
 
 match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
@@ -808,9 +811,9 @@ match' (PUnboxedRecord fs) t | not (any isNothing fs) = do
              Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
              _          -> Sat
   traceTc "gen" (text "match unboxed record:" <+> prettyIP p'
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c
-           L.<$> text "non-overlapping, and linearity constraints")
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c
+           `vsep2` text "non-overlapping, and linearity constraints")
   return (M.unions ss, co <> mconcat cs <> c <> d, p')
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PUnboxedRecord (filter isJust fs)) t
 
@@ -831,9 +834,9 @@ match' (PTake r fs) t | not (any isNothing fs) = do
         Left (v:_) -> Unsat $ DuplicateVariableInPattern v  -- p'
         _          -> Sat
   traceTc "gen" (text "match on take:" <+> prettyIP p'
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c
-           L.<$> text "non-overlapping, and linearity constraints")
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c
+           `vsep2` text "non-overlapping, and linearity constraints")
   return (M.unions (s:ss), co <> mconcat cs <> c, p')
   | otherwise = second3 (:& Unsat RecordWildcardsNotSupported) <$> match' (PTake r (filter isJust fs)) t
 
@@ -844,9 +847,9 @@ match' (PArray ps) t = do
   let (ss,cs,ps') = unzip3 blob
       l = SE (T u32) (IntLit . fromIntegral $ length ps) :: TCSExpr -- length of the array
       c = t :< (A alpha l (Left Unboxed) (Left Nothing))
-  traceTc "gen" (text "match on array literal pattern" L.<$>
-                 text "element type is" <+> pretty alpha L.<$>
-                 text "length is" <+> pretty l L.<$>
+  traceTc "gen" (text "match on array literal pattern" `vsep2`
+                 text "element type is" <+> ansiP alpha `vsep2`
+                 text "length is" <+> ansiP l `vsep2`
                  text "generate constraint" <+> prettyC c)
   return (M.unions ss, mconcat cs <> c, PArray ps')
 
@@ -862,10 +865,10 @@ match' (PArrayTake arr [(idx,p)]) t = do
           -- , Arith (SE (T bool) (PrimOp ">=" [toTCSExpr idx', SE (T u32) (IntLit 0)]))
           , Arith (SE (T bool) (PrimOp "<"  [toTCSExpr idx', len]))
           ]
-  traceTc "gen" (text "match on array take" L.<$>
-                 text "element type is" <+> pretty alpha L.<$>
-                 text "length is" <+> pretty len L.<$>
-                 text "sigil is" <+> pretty sigil L.<$>
+  traceTc "gen" (text "match on array take" `vsep2`
+                 text "element type is" <+> ansiP alpha `vsep2`
+                 text "length is" <+> ansiP len `vsep2`
+                 text "sigil is" <+> ansiP sigil `vsep2`
                  text "generate constraint" <+> prettyC (mconcat c))
   return (s `M.union` sp, cp `mappend` mconcat c, PArrayTake (arr, tarr) [(idx',p')])
 
@@ -956,11 +959,11 @@ withBindings (Binding pat tau e0 bs : xs) e top = do
           _ -> Sat
       c = ct <> c0 <> c' <> cp <> dropConstraintFor rs <> unused
       b' = Binding pat' (fmap (const alpha) tau) e0' bs
-  traceTc "gen" (text "bound expression" <+> pretty e0' <+>
-                 text "with banged" <+> pretty bs
-           L.<$> text "of type" <+> pretty alpha <> semi
-           L.<$> text "generate constraint" <+> prettyC c0 <> semi
-           L.<$> text "constraint for ascribed type:" <+> prettyC ct)
+  traceTc "gen" (text "bound expression" <+> ansiP e0' <+>
+                 text "with banged" <+> ansiP bs
+           `vsep2` text "of type" <+> ansiP alpha <> semi
+           `vsep2` text "generate constraint" <+> prettyC c0 <> semi
+           `vsep2` text "constraint for ascribed type:" <+> prettyC ct)
   return (c, b':xs', e')
 withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
   alpha <- freshTVar (TypeOfExpr (stripLocE e0) bs ?loc)
@@ -989,9 +992,9 @@ letBang bs f t = do
   (c', e) <- f t
   context %= undo  -- NOTE: this is NOT equiv. to `context .= ctx'
   let c'' = Escape t UsedInLetBang
-  traceTc "gen" (text "let!" <+> pretty bs <+> text "when cg for expression" <+> pretty e
-           L.<$> text "of type" <+> pretty t <> semi
-           L.<$> text "generate constraint" <+> prettyC c'')
+  traceTc "gen" (text "let!" <+> ansiP bs <+> text "when cg for expression" <+> ansiP e
+           `vsep2` text "of type" <+> ansiP t <> semi
+           `vsep2` text "generate constraint" <+> prettyC c'')
   return (c <> c' <> c'', e)
 
 validateVariable :: VarName -> CG Constraint
@@ -1007,13 +1010,13 @@ validateVariable v = do
 -- pp for debugging
 -- ----------------------------------------------------------------------------
 
-prettyE :: Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr -> Doc
-prettyE = pretty
+prettyE :: Expr TCType TCPatn TCIrrefPatn TCDataLayout TCExpr -> Doc AnsiStyle
+prettyE = ansiP
 
--- prettyP :: Pattern TCIrrefPatn -> Doc
--- prettyP = pretty
+-- prettyP :: Pattern TCIrrefPatn -> Doc AnsiStyle
+-- prettyP = ansiP
 
-prettyIP :: IrrefutablePattern TCName TCIrrefPatn TCExpr -> Doc
-prettyIP = pretty
+prettyIP :: IrrefutablePattern TCName TCIrrefPatn TCExpr -> Doc AnsiStyle
+prettyIP = ansiP
 
 

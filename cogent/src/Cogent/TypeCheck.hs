@@ -49,8 +49,10 @@ import qualified Data.Map as M
 import Data.Monoid ((<>))
 import qualified Data.Sequence as Seq
 import Text.Parsec.Pos
-import qualified Text.PrettyPrint.ANSI.Leijen as L
-import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
+--import qualified Text.PrettyPrint.ANSI.Leijen as L
+--import Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
+import Prettyprinter hiding ((<>))
+import Isabelle.PrettyAnsi
 import Lens.Micro
 import Lens.Micro.Mtl
 
@@ -80,8 +82,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (IncludeStd _) -> __impossible "checkOne"
   (DocBlock s) -> return $ DocBlock s
   (TypeDec n vs (stripLocT -> t)) -> do
-    traceTc "tc" $ bold (text $ replicate 80 '=')
-    traceTc "tc" (text "typecheck type definition" <+> pretty n)
+    traceTc "tc" $ annBf (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck type definition" <+> ansiP n)
     when (n `elem` primTypeCons) $ logErrExit $ RedefiningPrimType n
     let xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
@@ -89,12 +91,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
     ((ct,t'), flx, os) <- runCG ctx vs [] $ validateType t
-    traceTc "tc" (text "constraint for type decl" <+> pretty n <+> text "is"
-                  L.<$> prettyC ct)
+    traceTc "tc" (text "constraint for type decl" <+> ansiP n <+> text "is"
+                  `vsep2` prettyC ct)
     let ps = zip vs (repeat k2)
     (gs, subst, os') <- runSolver (solve ps [] ct) (flx, os)
-    traceTc "tc" (text "substs for type decl" <+> pretty n <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for type decl" <+> ansiP n <+> text "is"
+                  `vsep2` ansiP subst)
     exitOnErr $ toErrors os' gs
     let t'' = apply subst t'
     lift . lift $ knownTypes %= (<> [(n, (vs, Just t''))])
@@ -102,8 +104,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     return $ TypeDec n vs t'''
 
   (AbsTypeDec n vs (map stripLocT -> ts)) -> do
-    traceTc "tc" $ bold (text $ replicate 80 '=')
-    traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
+    traceTc "tc" $ annBf (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck abstract type definition" <+> ansiP n)
     when (n `elem` primTypeCons) $ logErrExit $ RedefiningPrimType n
     let xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
@@ -112,12 +114,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ?loc = loc
     (blob, flx, os) <- runCG ctx vs [] $ mapM validateType ts
     let (cts,ts') = unzip blob
-    traceTc "tc" (text "constraint for abstract type decl" <+> pretty n <+> text "is"
-                  L.<$> prettyC (mconcat cts))
+    traceTc "tc" (text "constraint for abstract type decl" <+> ansiP n <+> text "is"
+                  `vsep2` prettyC (mconcat cts))
     let ps = zip vs (repeat k2)
     (gs, subst, os') <- runSolver (solve ps [] $ mconcat cts) (flx, os)
-    traceTc "tc" (text "substs for abstract type decl" <+> pretty n <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for abstract type decl" <+> ansiP n <+> text "is"
+                  `vsep2` ansiP subst)
     exitOnErr $ toErrors os' gs
     let ts'' = fmap (apply subst) ts'
     ts''' <- mapM postT ts''
@@ -125,8 +127,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     return $ AbsTypeDec n vs ts'''
 
   (AbsDec n (PT ps ls (stripLocT -> t))) -> do
-    traceTc "tc" $ bold (text $ replicate 80 '=')
-    traceTc "tc" (text "typecheck abstract function" <+> pretty n)
+    traceTc "tc" $ annBf (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck abstract function" <+> ansiP n)
     let vs = map fst ps
         xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
@@ -149,12 +151,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                                         (do x <- validateTypes (stripLocT . snd <$> ls)
                                             y <- validateType t
                                             pure (x,y))
-    traceTc "tc" (text "constraint for abstract function" <+> pretty n <+> text "is"
-                  L.<$> prettyC ct)
+    traceTc "tc" (text "constraint for abstract function" <+> ansiP n <+> text "is"
+                  `vsep2` prettyC ct)
     let ls' = zip (fst <$> ls) lts
     (gs, subst, os') <- runSolver (solve ps ls' $ clt <> ct) (flx, os)
-    traceTc "tc" (text "substs for abstract function" <+> pretty n <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for abstract function" <+> ansiP n <+> text "is"
+                  `vsep2` ansiP subst)
     exitOnErr $ toErrors os' gs
     let t'' = apply subst t'
     lift . lift $ knownFuns %= M.insert n (PT ps ls' t'')
@@ -164,7 +166,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     return $ AbsDec n (PT ps ls'' t''')
 
   (RepDef decl@(DataLayoutDecl pos name vars expr)) -> do
-    traceTc "tc" (text "typecheck rep decl" <+> pretty name)
+    traceTc "tc" (text "typecheck rep decl" <+> ansiP name)
     let xs = vars \\ nub vars
     unless (null xs) $ logErrExit $ DuplicateLayoutVariable xs
     let elvs = nub (lvL expr)
@@ -175,19 +177,19 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     let ?loc = loc
     -- currently no recursive data layout
     ((c,l), flx, os) <- runCG ctx [] vars (validateLayout expr)
-    traceTc "tc" (text "constraint for rep decl" <+> pretty name <+> text "is"
-                  L.<$> prettyC c)
+    traceTc "tc" (text "constraint for rep decl" <+> ansiP name <+> text "is"
+                  `vsep2` prettyC c)
     (gs, subst, os') <- runSolver (solve [] [] c) (flx, os)
-    traceTc "tc" (text "substs for rep decl" <+> pretty name <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for rep decl" <+> ansiP name <+> text "is"
+                  `vsep2` ansiP subst)
     exitOnErr $ toErrors os' gs
     lift . lift $ knownDataLayouts %= M.insert name (vars, expr)
     let l' = toDLExpr $ applyL subst l
     return $ RepDef (DataLayoutDecl pos name vars l')
 
   (ConstDef n (stripLocT -> t) e) -> do
-    traceTc "tc" $ bold (text $ replicate 80 '=')
-    traceTc "tc" (text "typecheck const definition" <+> pretty n)
+    traceTc "tc" $ annBf (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck const definition" <+> ansiP n)
     base <- lift . lift $ use knownConsts
     let ctx = C.addScope (fmap (\(t,_,p) -> (t,p, Seq.singleton p)) base) C.empty  -- for consts, the definition is the first use
     let ?loc = loc
@@ -196,12 +198,12 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                                          y <- cg e t'
                                          pure (x,y))
     let c' = ct <> c <> Share t' (Constant n)
-    traceTc "tc" (text "constraint for const definition" <+> pretty n <+> text "is"
-                  L.<$> prettyC c')
+    traceTc "tc" (text "constraint for const definition" <+> ansiP n <+> text "is"
+                  `vsep2` prettyC c')
     (gs, subst, os') <- runSolver (solve [] [] c') (flx, os)
     exitOnErr $ toErrors os' gs
-    traceTc "tc" (text "substs for const definition" <+> pretty n <+> text "is"
-                  L.<$> pretty subst)
+    traceTc "tc" (text "substs for const definition" <+> ansiP n <+> text "is"
+                  `vsep2` ansiP subst)
     let t'' = apply subst t'
     lift . lift $ knownConsts %= M.insert n (t'', e', loc)
     e'' <- postE $ applyE subst e'
@@ -209,8 +211,8 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
     return (ConstDef n t''' e'')
 
   (FunDef f (PT ps ls (stripLocT -> t)) alts) -> do
-    traceTc "tc" $ bold (text $ replicate 80 '=')
-    traceTc "tc" (text "typecheck fun definition" <+> pretty f)
+    traceTc "tc" $ annBf (text $ replicate 80 '=')
+    traceTc "tc" (text "typecheck fun definition" <+> ansiP f)
     let vs = map fst ps
         xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
@@ -239,13 +241,13 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
                                             lift $ knownFuns %= M.insert f (PT ps ls' t')
                                             z <- cgFunDef alts t'
                                             pure (x,y,z))
-    traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
-                  L.<$> prettyC c)
+    traceTc "tc" (text "constraint for fun definition" <+> ansiP f <+> text "is"
+                  `vsep2` prettyC c)
     let ls' = zip (fst <$> ls) lts
     (gs, subst, os') <- runSolver (solve ps ls' $ clt <> ct <> c) (flx, os)
-    traceTc "tc" (text "substs for fun definition" <+> pretty f <+> text "is"
-                  L.<$> pretty subst)
-    -- traceTc "tc" (text "goals are:" L.<$> vcat (fmap (text . show) gs))
+    traceTc "tc" (text "substs for fun definition" <+> ansiP f <+> text "is"
+                  `vsep2` ansiP subst)
+    -- traceTc "tc" (text "goals are:" `vsep2` vcat (fmap (text . show) gs))
     exitOnErr $ toErrors os' gs
     let t'' = apply subst t'
 
@@ -269,7 +271,7 @@ typecheckPragmas = mapM go
   where
     go :: LocPragma -> TcM (Pragma DepType)
     go (LP loc (GSetterPragma m (stripLocT -> t) fld fn)) = do
-      traceTc "tc" $ bold (text $ replicate 80 '=')
+      traceTc "tc" $ annBf (text $ replicate 80 '=')
       traceTc "tc" (text "typecheck pragma" <+> text (show m ++ "ter"))
       let ?loc = loc
       ((ct,t'), flx, os) <- runCG C.empty [] [] $ validateType t

@@ -19,8 +19,10 @@ module Cogent.TypeCheck.Solver.Goal where
 import qualified Data.IntMap as IM
 import           Cogent.TypeCheck.Base
 import           Cogent.PrettyPrint
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+--import qualified Text.PrettyPrint.ANSI.Leijen as P
+--import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+import           Prettyprinter hiding ((<>))
+import           Isabelle.PrettyAnsi
 import qualified Data.Foldable as F
 import           Lens.Micro
 import           Lens.Micro.TH
@@ -33,8 +35,8 @@ data Goal = Goal { _goalContext :: [ErrorContext]
 
 instance Show Goal where
   show (Goal c g) = show big
-    where big = (small P.<$> (P.vcat $ map (`prettyCtx` True) c))
-          small = pretty g
+    where big = (small `vsep2` (vcat $ map (`prettyCtx` True) c))
+          small = ansiP g
 
 makeLenses ''Goal
 

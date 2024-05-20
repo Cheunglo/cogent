@@ -43,8 +43,10 @@ import Control.Monad.Trans.Maybe
 import Data.Foldable (asum)
 import qualified Data.IntMap as IM
 import Lens.Micro
-import Text.PrettyPrint.ANSI.Leijen (text, pretty)
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+--import Text.PrettyPrint.ANSI.Leijen (text, pretty)
+--import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Isabelle.PrettyAnsi (text, ansiP, vsep2)
+import qualified Prettyprinter as P
 
 import Debug.Trace
 
@@ -56,8 +58,8 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
   a <- asum $ map (genStructSubst mentions) cs -- a list of 'Maybe' substitutions.
                                                -- only return the first 'Just' substitution.
   tell [a]
-  traceTc "solver" (text "Sink/Float writes subst:" P.<$>
-                    P.indent 2 (pretty a))
+  traceTc "solver" (text "Sink/Float writes subst:" `vsep2`
+                    P.indent 2 (ansiP a))
   return $ map (goal %~ Subst.applyC a) gs
   where
     strip :: Constraint -> Constraint

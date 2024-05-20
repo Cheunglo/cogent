@@ -40,7 +40,9 @@ import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Lens.Micro
 import Lens.Micro.Mtl
-import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
+--import Text.PrettyPrint.ANSI.Leijen as P hiding ((<>), (<$>))
+import Prettyprinter hiding ((<>))
+import Isabelle.PrettyAnsi
 
 import Debug.Trace
 
@@ -53,19 +55,19 @@ type Post a = TcM a
 postT :: TCType -> Post DepType
 postT t = do
   d <- lift . lift $ use knownTypes
-  traceTc "post" (text "type" <+> pretty t)
+  traceTc "post" (text "type" <+> ansiP t)
   toDepType <$> normaliseT d t
 
 postE :: TCExpr -> Post TypedExpr
 postE e = do
   d <- lift . lift $ use knownTypes
-  traceTc "post" (text "expression" <+> pretty e)
+  traceTc "post" (text "expression" <+> ansiP e)
   toTypedExpr <$> normaliseE d e
 
 postA :: [Alt TCPatn TCExpr] -> Post [Alt TypedPatn TypedExpr]
 postA as = do
   d <- lift . lift $ use knownTypes
-  traceTc "post" (text "alternative" <+> pretty as)
+  traceTc "post" (text "alternative" <+> ansiP as)
   toTypedAlts <$> normaliseA d as
 
 normaliseA :: TypeDict -> [Alt TCPatn TCExpr] -> Post [Alt TCPatn TCExpr]

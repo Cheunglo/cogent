@@ -135,10 +135,8 @@ opSymbol LShift = "<<"
 opSymbol RShift = ">>"
 opSymbol Complement = "complement"
 
-instance Pretty Op where
-  pretty = string . opSymbol
-
-instance PrettyAnsi Op
+instance PrettyAnsi Op where
+  ansiP = string . opSymbol
 
 data Likelihood = Unlikely | Regular | Likely deriving (Show, Data, Eq, Ord)
 

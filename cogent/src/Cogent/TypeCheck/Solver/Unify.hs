@@ -35,7 +35,9 @@ import Data.Foldable (asum)
 import qualified Data.IntMap as IM (null)
 import Lens.Micro
 import Lens.Micro.Mtl
-import Text.PrettyPrint.ANSI.Leijen hiding (empty, indent, tupled, (<$>))
+--import Text.PrettyPrint.ANSI.Leijen hiding (empty, indent, tupled, (<$>))
+import Prettyprinter hiding (indent, tupled)
+import Isabelle.PrettyAnsi hiding (empty)
 
 import Debug.Trace
 
@@ -44,7 +46,7 @@ unify :: Rewrite.RewriteT TcSolvM [Goal]
 unify = Rewrite.rewrite' $ \cs -> do
            as <- asum (map (assignOf . view goal) cs)
            tell as
-           traceTc "solver" (text "Unify writes subst:" <+> pretty as)
+           traceTc "solver" (text "Unify writes subst:" <+> ansiP as)
            pure (foldr (\a -> map (goal %~ Subst.applyC a)) cs as)
 
 assignOf :: Constraint -> MaybeT TcSolvM [Subst.Subst]
