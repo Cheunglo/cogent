@@ -577,7 +577,7 @@ instance Functor (Flip (TypedExpr t v) b) where  -- over @a@
 
 
 -- /////////////////////////////////////////////////////////////////////////////
--- Core-lang -printing
+-- Core-lang pretty-printing
 
 primop = blue . (ansiP :: Op -> Doc AnsiStyle)
 fieldIndex = magenta . string . ('.':) . show
@@ -629,11 +629,11 @@ instance Prec (LExpr t b) where
   prec _ = 100
 #endif
 
-vF = dullblue  . string . ("_v" ++) . show . finInt
-tF = dullgreen . string . ("_t" ++) . show . finInt
+prettyV = dullblue  . string . ("_v" ++) . show . finInt
+prettyT = dullgreen . string . ("_t" ++) . show . finInt
 
 instance (PrettyAnsi a, PrettyAnsi b) => PrettyAnsi (TypedExpr t v a b) where
-  ansiP (TE t e) | not __cogent_fshow_types_in_ = ansiP e
+  ansiP (TE t e) | not __cogent_fshow_types_in_pretty = ansiP e
                   | otherwise = parens (ansiP e <+> symbol ":" <+> ansiP t)
 
 instance (PrettyAnsi a, PrettyAnsi b) => PrettyAnsi (UntypedExpr t v a b) where
@@ -642,53 +642,53 @@ instance (PrettyAnsi a, PrettyAnsi b) => PrettyAnsi (UntypedExpr t v a b) where
 instance (PrettyAnsi a, PrettyAnsi b, Prec (e t v a b), PrettyAnsi (e t v a b), PrettyAnsi (e t ('Suc v) a b), PrettyAnsi (e t ('Suc ('Suc v)) a b))
          => PrettyAnsi (Expr t v a b e) where
   ansiP (Op opr [a,b])
-     | LeftAssoc  l <- associativity opr = Prec (l+1) a <+> primop opr <+> prettyPrec l b
-     | RightAssoc l <- associativity opr = Prec l a <+> primop opr <+> prettyPrec (l+1)  b
-     | NoAssoc    l <- associativity opr = Prec l a <+> primop opr <+> prettyPrec l  b
-  ansiP (Op opr [e]) = primop opr <+> Prec 1 e
+     | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
+     | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b
+     | NoAssoc    l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec l  b
+  ansiP (Op opr [e]) = primop opr <+> prettyPrec 1 e
   ansiP (Op opr es)  = primop opr <+> tupled (map ansiP es)
   ansiP (ILit i pt) = literal (string $ show i) <+> symbol "::" <+> ansiP pt
   ansiP (SLit s) = literal $ string s
 #ifdef BUILTIN_ARRAYS
   ansiP (ALit es) = array $ map ansiP es
-  ansiP (ArrayIndex arr idx) = Prec 2 arr <+> symbol "@" <+> prettyPrec 2 idx
+  ansiP (ArrayIndex arr idx) = prettyPrec 2 arr <+> symbol "@" <+> prettyPrec 2 idx
   ansiP (ArrayMap2 ((v1,v2),f) (e1,e2)) = keyword "map2" <+>
                                            parens (symbol "\\" <> ansiP v1 <+> ansiP v2 <+> symbol "=>" <+> ansiP f) <+>
-                                           Prec 1 e1 <+> prettyPrec 1 e2
+                                           prettyPrec 1 e1 <+> prettyPrec 1 e2
   ansiP (Pop (v1,v2) e1 e2) = align (keyword "pop" <+> ansiP v1 <> symbol ":@" <> ansiP v2 <+> symbol "=" <+> ansiP e1 `vsep2`
                                 keyword "in"  <+> ansiP e2)
   ansiP (Singleton e) = keyword "singleton" <+> parens (ansiP e)
-  ansiP (ArrayPut arr i e) = Prec 1 arr <+> symbol "@" <> record [symbol "@" <> ansiP i <+> symbol "=" <+> ansiP e]
+  ansiP (ArrayPut arr i e) = prettyPrec 1 arr <+> symbol "@" <> record [symbol "@" <> ansiP i <+> symbol "=" <+> ansiP e]
   ansiP (ArrayTake (o, ca) pa i e) = align (keyword "take" <+> ansiP ca <+> symbol "@" <> record [symbol "@" <> ansiP i <+>
-                                             symbol "=" <+> ansiP o] <+> symbol "=" <+> (Prec 1 pa) `vsep2` keyword "in" <+> ansiP e)
+                                             symbol "=" <+> ansiP o] <+> symbol "=" <+> (prettyPrec 1 pa) `vsep2` keyword "in" <+> ansiP e)
 #endif
-  ansiP (Variable x) = ansiP (snd x) L.<> angles (vF $ fst x)
+  ansiP (Variable x) = ansiP (snd x) L.<> angles (prettyV $ fst x)
   ansiP (Fun fn ts ls nt) = ansiP nt L.<> funname (unCoreFunName fn) <+> ansiP ts <+> ansiP ls
-  ansiP (App a b) = Prec 2 a <+> prettyPrec 1 b
+  ansiP (App a b) = prettyPrec 2 a <+> prettyPrec 1 b
   ansiP (Let a e1 e2) = align (keyword "let" <+> ansiP a <+> symbol "=" <+> ansiP e1 `vsep2`
                                 keyword "in" <+> ansiP e2)
-  ansiP (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (vF . fst) bs) <+> ansiP a <+> symbol "=" <+> ansiP e1 `vsep2`
+  ansiP (LetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (prettyV . fst) bs) <+> ansiP a <+> symbol "=" <+> ansiP e1 `vsep2`
                                        keyword "in" <+> ansiP e2)
   ansiP (Unit) = tupled []
   ansiP (Tuple e1 e2) = tupled (map ansiP [e1, e2])
   ansiP (Struct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldname n <+> symbol "=" <+> ansiP e) fs)
-  ansiP (Con tn e t) = parens (tagname tn <+> Prec 1 e) <+> symbol "::" <+> ansiP t
+  ansiP (Con tn e t) = parens (tagname tn <+> prettyPrec 1 e) <+> symbol "::" <+> ansiP t
   ansiP (If c t e) = group . align $ (keyword "if" <+> ansiP c
-                                       `vsep2` indent (keyword "then" </> align (ansiP t))
-                                       `vsep2` indent (keyword "else" </> align (ansiP e)))
+                                       `vsep2` indent (keyword "then" `fillSep2` align (ansiP t))
+                                       `vsep2` indent (keyword "else" `fillSep2` align (ansiP e)))
   ansiP (Case e tn (l1,v1,a1) (l2,v2,a2)) = align (keyword "case" <+> ansiP e <+> keyword "of"
                                                   `vsep2` indent (tagname tn <+> ansiP v1 <+> ansiP l1 <+> align (ansiP a1))
                                                   `vsep2` indent (ansiP v2 <+> ansiP l2 <+> align (ansiP a2)))
   ansiP (Esac e) = keyword "esac" <+> parens (ansiP e)
   ansiP (Split (v1,v2) e1 e2) = align (keyword "split" <+> parens (ansiP v1 <> comma <> ansiP v2) <+> symbol "=" <+> ansiP e1 `vsep2`
                                   keyword "in" <+> ansiP e2)
-  ansiP (Member x f) = Prec 1 x L.<> symbol "." L.<> fieldIndex f
+  ansiP (Member x f) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
   ansiP (Take (a,b) rec f e) = align (keyword "take" <+> tupled [ansiP a, ansiP b] <+> symbol "="
-                                                      <+> Prec 1 rec <+> record (fieldIndex f:[]) `vsep2`
+                                                      <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) `vsep2`
                                        keyword "in" <+> ansiP e)
-  ansiP (Put rec f v) = Prec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> ansiP v]
-  ansiP (Promote t e) = Prec 1 e <+> symbol ":^:" <+> ansiP t
-  ansiP (Cast t e) = Prec 1 e <+> symbol ":::" <+> ansiP t
+  ansiP (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> ansiP v]
+  ansiP (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> ansiP t
+  ansiP (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> ansiP t
 
 instance PrettyAnsi FunNote where
   ansiP NoInline = empty
@@ -697,24 +697,24 @@ instance PrettyAnsi FunNote where
   ansiP InlinePlease = comment "inline" <+> empty
 
 instance (PrettyAnsi b) => PrettyAnsi (Type t b) where
-  ansiP (TVar v) = tF v
-  ansiP (TVarBang v) = tF v L.<> typesymbol "!"
-  ansiP (TVarUnboxed v) = typesymbol "#" <> tF v
+  ansiP (TVar v) = prettyT v
+  ansiP (TVarBang v) = prettyT v L.<> typesymbol "!"
+  ansiP (TVarUnboxed v) = typesymbol "#" <> prettyT v
   ansiP (TPrim pt) = ansiP pt
   ansiP (TString) = typename "String"
   ansiP (TUnit) = typename "()"
   ansiP (TProduct t1 t2) = tupled (map ansiP [t1, t2])
-  ansiP (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> takenF b <+> ansiP t) alts)
-  ansiP (TFun t1 t2) = vT' t1 <+> typesymbol "->" <+> ansiP t2
-     where vT' e@(TFun {}) = parens (ansiP e)
-           vT' e           = ansiP e
-  ansiP (TRecord rp fs s) = ansiP rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> takenF b <+> ansiP t) fs)
+  ansiP (TSum alts) = variant (map (\(n,(t,b)) -> tagname n L.<> prettyTaken b <+> ansiP t) alts)
+  ansiP (TFun t1 t2) = prettyT' t1 <+> typesymbol "->" <+> ansiP t2
+     where prettyT' e@(TFun {}) = parens (ansiP e)
+           prettyT' e           = ansiP e
+  ansiP (TRecord rp fs s) = ansiP rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> ansiP t) fs)
                           <> ansiP s
   ansiP (TCon tn [] s) = typename tn <> ansiP s
-  ansiP (TCon tn ts s) = typename tn <> ansiP s <+> hsep (map (parens . ) ts)
+  ansiP (TCon tn ts s) = typename tn <> ansiP s <+> hsep (map (parens . ansiP) ts)
   ansiP (TSyn tn [] s r) = typename tn <> ansiP s <> (if r then typesymbol "!" else empty)
   ansiP (TSyn tn ts s r) = typename tn <> ansiP s <> (if r then typesymbol "!" else empty)
-                            <+> hsep (map (parens . ) ts)
+                            <+> hsep (map (parens . ansiP) ts)
   ansiP (TRPar v m) = keyword "rec" <+> typevar v
 #ifdef BUILTIN_ARRAYS
   ansiP (TArray t l s mhole) = (ansiP t <> brackets (ansiP l) <+> ansiP s) &
@@ -724,23 +724,23 @@ instance (PrettyAnsi b) => PrettyAnsi (Type t b) where
   ansiP (TRefine t p) = braces (ansiP t <+> symbol "|" <+> ansiP p)
 #endif
 
-takenF :: Bool -> Doc AnsiStyle
-takenF True  = symbol "*"
-takenF False = empty
+prettyTaken :: Bool -> Doc AnsiStyle
+prettyTaken True  = symbol "*"
+prettyTaken False = empty
 
 #ifdef BUILTIN_ARRAYS
 instance (PrettyAnsi b) => PrettyAnsi (LExpr t b) where
   ansiP (LOp opr [a,b])
-     | LeftAssoc  l <- associativity opr = Prec (l+1) a <+> primop opr <+> prettyPrec l b
-     | RightAssoc l <- associativity opr = Prec l a <+> primop opr <+> prettyPrec (l+1)  b
-     | NoAssoc    l <- associativity opr = Prec l a <+> primop opr <+> prettyPrec l  b
-  ansiP (LOp opr [e]) = primop opr <+> Prec 1 e
+     | LeftAssoc  l <- associativity opr = prettyPrec (l+1) a <+> primop opr <+> prettyPrec l b
+     | RightAssoc l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec (l+1)  b
+     | NoAssoc    l <- associativity opr = prettyPrec l a <+> primop opr <+> prettyPrec l  b
+  ansiP (LOp opr [e]) = primop opr <+> prettyPrec 1 e
   ansiP (LOp opr es)  = primop opr <+> tupled (map ansiP es)
   ansiP (LILit i pt) = literal (string $ show i) <+> symbol "::" <+> ansiP pt
   ansiP (LSLit s) = literal $ string s
   ansiP (LVariable x) = ansiP (snd x) L.<> angles (L.int . natToInt $ fst x)
   ansiP (LFun fn ts ls) = funname (unCoreFunName fn) <+> ansiP ts <+> ansiP ls
-  ansiP (LApp a b) = Prec 2 a <+> prettyPrec 1 b
+  ansiP (LApp a b) = prettyPrec 2 a <+> prettyPrec 1 b
   ansiP (LLet a e1 e2) = align (keyword "let" <+> ansiP a <+> symbol "=" <+> ansiP e1 `vsep2`
                                 keyword "in" <+> ansiP e2)
   ansiP (LLetBang bs a e1 e2) = align (keyword "let!" <+> tupled (map (L.int . natToInt . fst) bs) <+> ansiP a <+> symbol "=" <+> ansiP e1 `vsep2`
@@ -748,23 +748,23 @@ instance (PrettyAnsi b) => PrettyAnsi (LExpr t b) where
   ansiP (LUnit) = tupled []
   ansiP (LTuple e1 e2) = tupled (map ansiP [e1, e2])
   ansiP (LStruct fs) = symbol "#" L.<> record (map (\(n,e) -> fieldname n <+> symbol "=" <+> ansiP e) fs)
-  ansiP (LCon tn e t) = parens (tagname tn <+> Prec 1 e) <+> symbol "::" <+> ansiP t
+  ansiP (LCon tn e t) = parens (tagname tn <+> prettyPrec 1 e) <+> symbol "::" <+> ansiP t
   ansiP (LIf c t e) = group . align $ (keyword "if" <+> ansiP c
-                                       `vsep2` indent (keyword "then" </> align (ansiP t))
-                                       `vsep2` indent (keyword "else" </> align (ansiP e)))
+                                       `vsep2` indent (keyword "then" `fillSep2` align (ansiP t))
+                                       `vsep2` indent (keyword "else" `fillSep2` align (ansiP e)))
   ansiP (LCase e tn (v1,a1) (v2,a2)) = align (keyword "case" <+> ansiP e <+> keyword "of"
                                                `vsep2` indent (tagname tn <+> ansiP v1 <+> symbol "->" <+> align (ansiP a1))
                                                `vsep2` indent (ansiP v2 <+> symbol "->" <+> align (ansiP a2)))
   ansiP (LEsac e) = keyword "esac" <+> parens (ansiP e)
   ansiP (LSplit (v1,v2) e1 e2) = align (keyword "split" <+> parens (ansiP v1 <> comma <> ansiP v2) <+> symbol "=" <+> ansiP e1 `vsep2`
                                   keyword "in" <+> ansiP e2)
-  ansiP (LMember x f) = Prec 1 x L.<> symbol "." L.<> fieldIndex f
+  ansiP (LMember x f) = prettyPrec 1 x L.<> symbol "." L.<> fieldIndex f
   ansiP (LTake (a,b) rec f e) = align (keyword "take" <+> tupled [ansiP a, ansiP b] <+> symbol "="
-                                                      <+> Prec 1 rec <+> record (fieldIndex f:[]) `vsep2`
+                                                      <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) `vsep2`
                                        keyword "in" <+> ansiP e)
-  ansiP (LPut rec f v) = Prec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> ansiP v]
-  ansiP (LPromote t e) = Prec 1 e <+> symbol ":^:" <+> ansiP t
-  ansiP (LCast t e) = Prec 1 e <+> symbol ":::" <+> ansiP t
+  ansiP (LPut rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> ansiP v]
+  ansiP (LPromote t e) = prettyPrec 1 e <+> symbol ":^:" <+> ansiP t
+  ansiP (LCast t e) = prettyPrec 1 e <+> symbol ":::" <+> ansiP t
 #endif
 
 

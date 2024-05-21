@@ -70,7 +70,8 @@ import Data.Traversable(traverse)
 #endif
 import Lens.Micro (_2)
 import Lens.Micro.Mtl (view)
-import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
+--import Text.PrettyPrint.ANSI.Leijen (Pretty, pretty)
+import Isabelle.PrettyAnsi (PrettyAnsi, ansiP)
 import qualified Unsafe.Coerce as Unsafe (unsafeCoerce)  -- NOTE: used safely to coerce phantom types only
 
 import Debug.Trace
@@ -502,17 +503,17 @@ runTC (TC a) readers st = case runState (runReaderT (runExceptT a) readers) st o
 -- XXX |     tc_debug' ((AbsDecl _ fn ts t rt):ds) reader = tc_debug' ds (M.insert fn (FT (fmap snd ts) t rt) reader)
 -- XXX |     tc_debug' (_:ds) reader = tc_debug' ds reader
 
-retype :: (Show b, Eq b, Pretty b, a ~ b)
+retype :: (Show b, Eq b, PrettyAnsi b, a ~ b)
        => [Definition TypedExpr a b]
        -> Either String [Definition TypedExpr a b]
 retype ds = fmap fst $ tc $ map untypeD ds
 
-tc :: (Show b, Eq b, Pretty b, a ~ b)
+tc :: (Show b, Eq b, PrettyAnsi b, a ~ b)
    => [Definition UntypedExpr a b]
    -> Either String ([Definition TypedExpr a b], Map FunName (FunctionType b))
 tc tls = tc' tls M.empty $ coerceTypeDefs tls
   where
-    tc' :: (Show b, Eq b, Pretty b, a ~ b)
+    tc' :: (Show b, Eq b, PrettyAnsi b, a ~ b)
         => [Definition UntypedExpr a b]
         -> Map FunName (FunctionType b)  -- the reader
         -> [Definition TypedExpr a b]
@@ -528,7 +529,7 @@ tc tls = tc' tls M.empty $ coerceTypeDefs tls
       (first (Unsafe.unsafeCoerce d:)) <$> tc' ds (M.insert fn (FT (fmap snd ks) (fmap snd ls) t rt) reader) tdfs
     tc' (d:ds) reader tdfs = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader tdfs
 
-tc_ :: (Show b, Eq b, Pretty b, a ~ b)
+tc_ :: (Show b, Eq b, PrettyAnsi b, a ~ b)
     => [Definition UntypedExpr a b]
     -> Either String [Definition TypedExpr a b]
 tc_ = fmap fst . tc
@@ -592,7 +593,7 @@ kindcheck_ f (TArray t l s _) = mappend <$> kindcheck_ f t <*> pure (sigilKind s
 kindcheck = kindcheck_ lookupKind
 
 
-typecheck :: (Pretty a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
+typecheck :: (PrettyAnsi a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
   t' <- unfoldSynsDeepM $ exprType e
   t'' <- unfoldSynsDeepM t
@@ -600,14 +601,14 @@ typecheck e t = do
   if | t'' == t' -> return e
      | isSub -> return (promote t e)
      | otherwise -> __impossible $ "Inferred type of\n" ++
-                                   show (indent' $ pretty e) ++
+                                   show (indent' $ ansiP e) ++
                                    "\ndoesn't agree with the given type signature:\n" ++
                                    "Inferred type:\n" ++
-                                   show (indent' $ pretty t') ++
+                                   show (indent' $ ansiP t') ++
                                    "\nGiven type:\n" ++
-                                   show (indent' $ pretty t'') ++ "\n"
+                                   show (indent' $ ansiP t'') ++ "\n"
 
-infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
+infer :: (PrettyAnsi a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
 infer (E (Op o es))
    = do es' <- mapM infer es
         ts <- mapM (unfoldSynsShallowM . exprType) es'
@@ -748,7 +749,7 @@ infer (E (If ec et ee))
         te <- unfoldSynsDeepM $ exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
+        guardShow' "if-2" ["Then type:", show (ansiP tt) ++ ";", "else type:", show (ansiP te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
             tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
@@ -767,7 +768,7 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         te <- unfoldSynsDeepM $ exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
-        guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
+        guardShow' "case" ["Match type:", show (ansiP tt) ++ ";", "rest type:", show (ansiP te)] isSub
         let et'' = if tt /= tlub then promote tlub et' else et'
             ee'' = if te /= tlub then promote tlub ee' else ee'
             tl = if tt == tlub then exprType et' else if te == tlub then exprType ee' else tlub
@@ -803,7 +804,7 @@ infer (E (Take a e f e2))
         -- trace ("@@@@t is " ++ show t) $ return ()
         TRecord rp ts s <- unfoldSynsShallowM t
         -- a common cause of this error is taking a field when you could have used member
-        guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
+        guardShow ("take: sigil cannot be readonly: " ++ show (ansiP e)) $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
         tau' <- unfoldSynsDeepM tau

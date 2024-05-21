@@ -63,7 +63,10 @@ import Numeric
 import Prelude hiding ((<$>))
 #endif
 import System.FilePath ((</>))
-import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
+--import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
+import Prettyprinter hiding ((</>))
+import Prettyprinter.Render.Terminal
+import Isabelle.PrettyAnsi
 import Text.Printf
 import Text.Show
 
@@ -73,9 +76,9 @@ data TypingTree t = TyTrLeaf
                   | TyTrSplit [Maybe TypeSplitKind] (TreeCtx t) (TreeCtx t)
 type TreeCtx t = ([Maybe (Type t VarName)], TypingTree t)
 
-deepTypeProof :: (Pretty a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a VarName] -> String -> Doc
+deepTypeProof :: (PrettyAnsi a) => NameMod -> Bool -> Bool -> String -> [Definition TypedExpr a VarName] -> String -> Doc AnsiStyle
 deepTypeProof mod withDecls withBodies thy decls log =
-  let header = (string ("(*\n" ++ log ++ "\n*)\n") <$>)
+  let header = (string ("(*\n" ++ log ++ "\n*)\n") `vsep2`)
       ta = getTypeAbbrevs mod decls
       imports = if __cogent_fml_typing_tree
                 then
@@ -98,7 +101,7 @@ deepTypeProof mod withDecls withBodies thy decls log =
                             M.elems (st ^. subproofSplits) ++
                             M.elems (st ^. subproofWeakens) ++
                             M.elems (st ^. subproofWellformed)
-  in header . pretty $ Theory thy (TheoryImports imports) $ proofDecls ++ proofBodies
+  in header . ansiP $ Theory thy (TheoryImports imports) $ proofDecls ++ proofBodies
 
 splitEvery :: Int -> [a] -> [[a]]
 splitEvery = splitEveryW (const 1)
@@ -170,7 +173,7 @@ flattenHintTree :: LeafTree Hints -> [TreeSteps Hints]
 flattenHintTree (Branch ths) = StepDown : concatMap flattenHintTree ths ++ [StepUp]
 flattenHintTree (Leaf h) = [Val h]
 
-proveSorry :: (Pretty a) => Definition TypedExpr a VarName -> State TypingSubproofs [TheoryDecl I.Type I.Term]
+proveSorry :: (PrettyAnsi a) => Definition TypedExpr a VarName -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proveSorry (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
   let safeFn = unIsabelleName $ mkIsabelleName fn
@@ -181,7 +184,7 @@ proveSorry (FunDef _ fn k _ ti to e) = do
   return prf
 proveSorry _ = return []
 
-prove :: (Pretty a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
+prove :: (PrettyAnsi a) => [Definition TypedExpr a VarName] -> Definition TypedExpr a VarName
       -> State TypingSubproofs ([TheoryDecl I.Type I.Term], [TheoryDecl I.Type I.Term])
 prove decls (FunDef _ fn k _ ti to e) = do
   mod <- use nameMod
@@ -193,7 +196,7 @@ prove decls (FunDef _ fn k _ ti to e) = do
   return (fn_typecorrect_proof, if __cogent_fml_typing_tree then formatMLTreeFinalise (mod fn) else [])
 prove _ _ = return ([], [])
 
-proofs :: (Pretty a) => [Definition TypedExpr a VarName]
+proofs :: (PrettyAnsi a) => [Definition TypedExpr a VarName]
        -> State TypingSubproofs [TheoryDecl I.Type I.Term]
 proofs decls = do
     let (predecls,postdecls) = badHackSplitOnSorryBefore decls
@@ -201,12 +204,12 @@ proofs decls = do
     bodies <- mapM (prove decls) postdecls
     return $ concat $ bsorry ++ map fst bodies ++ map snd bodies
 
-funTypeTree :: (Pretty a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a VarName -> [TheoryDecl I.Type I.Term]
+funTypeTree :: (PrettyAnsi a) => NameMod -> TypeAbbrevs -> Definition TypedExpr a VarName -> [TheoryDecl I.Type I.Term]
 funTypeTree mod ta (FunDef _ fn _ _ ti _ e) = [deepTyTreeDef mod ta fn (typeTree eexpr)]
   where eexpr = pushDown (Cons (Just ti) Nil) (splitEnv (Cons (Just ti) Nil) e)
 funTypeTree _ _ _ = []
 
-funTypeTrees :: (Pretty a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
+funTypeTrees :: (PrettyAnsi a) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a VarName] -> [TheoryDecl I.Type I.Term]
 funTypeTrees mod ta decls =
   let (_, decls') = badHackSplitOnSorryBefore decls
   in concatMap (funTypeTree mod ta) decls
@@ -326,7 +329,7 @@ selectEnv [] env = cleared env
 selectEnv ((v,_):vs) env = update (selectEnv vs env) v (env `at` v)
 
 -- Annotates a typed expression with the environment required to successfully execute it
-splitEnv :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> TypedExpr t v a VarName -> EnvExpr t v a VarName
+splitEnv :: (PrettyAnsi a) => Vec v (Maybe (Type t VarName)) -> TypedExpr t v a VarName -> EnvExpr t v a VarName
 splitEnv env (TE t Unit)             = EE t Unit          $ cleared env
 splitEnv env (TE t (ILit i t'))      = EE t (ILit i t')   $ cleared env
 splitEnv env (TE t (SLit s))         = EE t (SLit s)      $ cleared env
@@ -418,7 +421,7 @@ splitEnv env (TE t (Take a e f e2)) =
 
 -- Ensures that the environment of an expression is equal to the sum of the
 -- environments of the subexpressions.
-pushDown :: (Pretty a) => Vec v (Maybe (Type t VarName)) -> EnvExpr t v a VarName -> EnvExpr t v a VarName
+pushDown :: (PrettyAnsi a) => Vec v (Maybe (Type t VarName)) -> EnvExpr t v a VarName -> EnvExpr t v a VarName
 pushDown unused (EE ty e@Unit      _) = EE ty e unused
 pushDown unused (EE ty e@(ILit {}) _) = EE ty e unused
 pushDown unused (EE ty e@(SLit {}) _) = EE ty e unused
@@ -508,7 +511,7 @@ pushDown unused (EE ty (Cast ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Cast ty' e') $ unused <|> env
 
-pushDown _ e = __impossible $ "pushDown:" ++ show (pretty e) ++ " is not yet implemented"
+pushDown _ e = __impossible $ "pushDown:" ++ show (ansiP e) ++ " is not yet implemented"
 
 treeSplit :: Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe TypeSplitKind
 treeSplit Nothing  Nothing  Nothing  = Nothing

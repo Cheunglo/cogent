@@ -35,7 +35,11 @@ import Data.List (intercalate, sort)
 import Prelude hiding ((<$>))
 #endif
 import System.FilePath ((</>))
-import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
+--import Text.PrettyPrint.ANSI.Leijen hiding ((</>))
+import Prettyprinter hiding ((</>))
+import Prettyprinter.Render.Terminal
+import Isabelle.PrettyAnsi
+
 
 -- import Debug.Trace
 
@@ -59,7 +63,7 @@ deepRecordState :: Bool -> Term
 deepRecordState False = mkId "Present"
 deepRecordState True  = mkId "Taken"
 
-deepTypeInner :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> CC.Type t b -> Term
+deepTypeInner :: (Ord b, PrettyAnsi b) => NameMod -> TypeAbbrevs -> CC.Type t b -> Term
 deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
 deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
@@ -73,7 +77,7 @@ deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta
 -- TODO: Do recursive types have a place in the deep embedding?
 deepTypeInner mod ta (TRecord _ fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (mkString fn) (mkPair (deepType mod ta t) (deepRecordState b))) fs, deepSigil s]
 deepTypeInner mod ta (TUnit) = mkId "TUnit"
-deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
+deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (ansiP t) ++ " is not yet implemented"
 
 mkAbbrevNm :: NameMod -> Int -> String
 mkAbbrevNm mod n = mod $ "abbreviatedType" ++ show n
@@ -81,7 +85,7 @@ mkAbbrevNm mod n = mod $ "abbreviatedType" ++ show n
 mkAbbrevId :: NameMod -> Int -> Term
 mkAbbrevId = (mkId .) . mkAbbrevNm
 
-deepType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> CC.Type t b -> Term
+deepType :: (Ord b, PrettyAnsi b) => NameMod -> TypeAbbrevs -> CC.Type t b -> Term
 deepType mod ta t = case Map.lookup term (fst ta) of
     Just n -> mkAbbrevId mod n
     Nothing -> term
@@ -131,7 +135,7 @@ deepPrimOp CS.LShift t = mkApp (mkId "LShift") [deepNumType t]
 deepPrimOp CS.RShift t = mkApp (mkId "RShift") [deepNumType t]
 deepPrimOp CS.Complement t = mkApp (mkId "Complement") [deepNumType t]
 
-deepExpr :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> TypedExpr t v a b -> Term
+deepExpr :: (PrettyAnsi a, Ord b, PrettyAnsi b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> TypedExpr t v a b -> Term
 deepExpr mod ta defs (TE _ (Variable v)) = mkApp (mkId "Var") [deepIndex (fst v)]
 deepExpr mod ta defs (TE _ (Fun fn ts ls _))  -- FIXME
   | concreteFun fn = mkApp (mkId "Fun")  [mkId (mod (unIsabelleName $ mkIsabelleName $ unCoreFunName fn)), mkList (map (deepType mod ta) ts)]
@@ -190,19 +194,19 @@ deepExpr mod ta defs (TE _ (Split _ e1 e2))
 deepExpr mod ta defs (TE _ (Cast t e))
   | TE (TPrim pt) _ <- e, TPrim pt' <- t, pt /= Boolean
   = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]
-deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
+deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (ansiP e)
 
 deepKind :: Kind -> Term
 deepKind (K e s d) = ListTerm "{" [ mkId str | (sig, str) <- [(e, "E"), (s, "S"), (d, "D")], sig ] "}"
 
-deepPolyType :: (Ord b, Pretty b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
+deepPolyType :: (Ord b, PrettyAnsi b) => NameMod -> TypeAbbrevs -> FunctionType b -> Term
 deepPolyType mod ta (FT ks ts ti to) = mkPair (mkList $ map deepKind $ cvtToList ks)  -- FIXME
                                               (mkPair (deepType mod ta ti) (deepType mod ta to))
 
 imports :: TheoryImports
 imports = TheoryImports $ ["Cogent.Cogent"]
 
-deepDefinition :: (Pretty a, Ord b, Pretty b)
+deepDefinition :: (PrettyAnsi a, Ord b, PrettyAnsi b)
                => NameMod
                -> TypeAbbrevs
                -> [Definition TypedExpr a b]
@@ -231,7 +235,7 @@ deepDefinition mod ta _ (AbsDecl _ fn ks ts ti to) decls =
      in tydecl:decls
 deepDefinition _ _ _ _ decls = decls
 
-deepDefinitions :: (Pretty a, Ord b, Pretty b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> [TheoryDecl I.Type I.Term]
+deepDefinitions :: (PrettyAnsi a, Ord b, PrettyAnsi b) => NameMod -> TypeAbbrevs -> [Definition TypedExpr a b] -> [TheoryDecl I.Type I.Term]
 deepDefinitions mod ta defs = foldr (deepDefinition mod ta defs) [] defs ++
                               [TheoryString $
                                "ML \\<open>\n" ++
@@ -259,7 +263,7 @@ scanAggregates (TProduct t1 t2) = scanAggregates t1 ++ scanAggregates t2
 scanAggregates (TRecord rp fs s) = concatMap (scanAggregates . fst . snd) fs ++ [TRecord rp fs s]
 scanAggregates _ = []
 
-addTypeAbbrev :: (Ord b, Pretty b) => NameMod -> CC.Type t b -> TypeAbbrevs -> TypeAbbrevs
+addTypeAbbrev :: (Ord b, PrettyAnsi b) => NameMod -> CC.Type t b -> TypeAbbrevs -> TypeAbbrevs
 addTypeAbbrev mod t ta = case Map.lookup term (fst ta) of
     Just s -> ta
     Nothing -> (Map.insert term (snd ta) (fst ta), snd ta + 1)
@@ -295,13 +299,13 @@ deepTypeAbbrevs mod ta = map (deepTypeAbbrev mod) defs ++ [typeAbbrevDefsLemma m
   where
     defs = sort $ map (\(x, y) -> (y, x)) $ Map.toList (fst ta)
 
-deepDefinitionsAbb :: (Pretty a, Ord b, Pretty b) => NameMod -> [Definition TypedExpr a b] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
+deepDefinitionsAbb :: (PrettyAnsi a, Ord b, PrettyAnsi b) => NameMod -> [Definition TypedExpr a b] -> (TypeAbbrevs, [TheoryDecl I.Type I.Term])
 deepDefinitionsAbb mod defs = (ta, deepTypeAbbrevs mod ta ++ deepDefinitions mod ta defs)
   where ta = getTypeAbbrevs mod defs
 
-deepFile :: (Pretty a, Ord b, Pretty b) => NameMod -> String -> [Definition TypedExpr a b] -> Theory I.Type I.Term
+deepFile :: (PrettyAnsi a, Ord b, PrettyAnsi b) => NameMod -> String -> [Definition TypedExpr a b] -> Theory I.Type I.Term
 deepFile mod thy defs = Theory thy imports (snd (deepDefinitionsAbb mod defs))
 
-deep :: (Pretty a, Ord b, Pretty b) => String -> Stage -> [Definition TypedExpr a b] -> String -> Doc
-deep thy stg defs log = string ("(*\n" ++ log ++ "\n*)\n") <$>
-                        pretty (deepFile snm thy defs)
+deep :: (PrettyAnsi a, Ord b, PrettyAnsi b) => String -> Stage -> [Definition TypedExpr a b] -> String -> Doc AnsiStyle
+deep thy stg defs log = string ("(*\n" ++ log ++ "\n*)\n") `vsep2`
+                        ansiP (deepFile snm thy defs)

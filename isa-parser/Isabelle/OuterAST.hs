@@ -188,19 +188,25 @@ vsepPad xs = empty `vcat2` vsep (intersperse empty xs) `vcat2` empty
 quote :: Doc ann -> Doc ann
 quote doc = char '"' <>  doc <> char '"'
 
+prettyTheoryBase :: (Pretty terms, Pretty types) => Theory types terms -> Doc ann
+prettyTheoryBase thy = (string "theory" <+> string (thyName thy)) `vcat2`
+                     pretty (thyImports thy) `vcat2`
+                     string "begin" `vcat2`
+                     prettyThyDecls (thyBody thy) <>
+                     string "end" `vcat2` empty
+
 instance (Pretty terms, Pretty types) =>  Pretty (Theory types terms) where
-  pretty thy = (string "theory" <+> string (thyName thy)) `vcat2`
-                         pretty (thyImports thy) `vcat2`
-                         string "begin" `vcat2`
-                         prettyThyDecls (thyBody thy) <>
-                         string "end" `vcat2` empty
+  pretty = prettyTheoryBase
+
+instance (Pretty terms, Pretty types) =>  PrettyAnsi (Theory types terms) where
+  ansiP = prettyTheoryBase 
 
 prettyThyDecls :: (Pretty terms, Pretty types) => [TheoryDecl types terms] -> Doc ann
 prettyThyDecls [] = empty
 prettyThyDecls thyDecls = (vsepPad . map pretty $ thyDecls) `vcat2` empty
 
-instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
-  pretty d = case d of
+prettyTheoryDeclBase :: (Pretty terms, Pretty types) => TheoryDecl types terms -> Doc ann
+prettyTheoryDeclBase d = case d of
     Definition def      -> pretty def
     OverloadedDef def sig -> prettyOv def sig
     Abbreviation abbrev -> pretty abbrev
@@ -215,63 +221,148 @@ instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
     FunFunction ff f    -> (if ff then string "fun" else string "function") <+> pretty f
     TheoryString s      -> string s
 
-instance (Pretty terms, Pretty types) => Pretty (Context types terms) where
-  pretty (Context name cDecls) = string "context" <+> string name <+> string "begin" `vcat2` 
-                                 prettyThyDecls cDecls <> string "end"
 
-instance (Pretty terms, Pretty types) => Pretty (Lemma types terms) where
-  pretty (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_lemma" else "lemma") <+>
+instance (Pretty terms, Pretty types) => Pretty (TheoryDecl types terms) where
+  pretty = prettyTheoryDeclBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (TheoryDecl types terms) where
+  ansiP = prettyTheoryDeclBase
+
+prettyContextBase :: (Pretty terms, Pretty types) => Context types terms -> Doc ann
+prettyContextBase (Context name cDecls) = string "context" <+> string name <+> string "begin" `vcat2` 
+                                          prettyThyDecls cDecls <> string "end"
+
+instance (Pretty terms, Pretty types) => Pretty (Context types terms) where
+  pretty = prettyContextBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Context types terms) where
+  ansiP = prettyContextBase
+
+prettyLemmaBase :: (Pretty terms, Pretty types) => Lemma types terms -> Doc ann
+prettyLemmaBase (Lemma schematic thmDecl props proof) = string (if schematic then "schematic_lemma" else "lemma") <+>
     pretty thmDecl <+> string ":" `vcat2` indent 2 (vsep (map (quote . pretty) props)) `vcat2` indent 2 (pretty proof)
 
-instance (Pretty terms, Pretty types) => Pretty (Lemmas types terms) where
-  pretty (Lemmas name lems) = string "lemmas" <+>
+instance (Pretty terms, Pretty types) => Pretty (Lemma types terms) where
+  pretty = prettyLemmaBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Lemma types terms) where
+  ansiP = prettyLemmaBase
+
+prettyLemmasBase :: (Pretty terms, Pretty types) => Lemmas types terms -> Doc ann
+prettyLemmasBase (Lemmas name lems) = string "lemmas" <+>
     pretty name <+> string "=" `vcat2` indent 2 (vsep $ map pretty lems)
 
-instance (Pretty terms, Pretty types) => Pretty (TypeSyn types terms) where
-  pretty (TypeSyn mbName typs tvs) = string "type_synonym" <+>
+instance (Pretty terms, Pretty types) => Pretty (Lemmas types terms) where
+  pretty = prettyLemmasBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Lemmas types terms) where
+  ansiP = prettyLemmasBase
+
+prettyTypeSynBase :: (Pretty terms, Pretty types) => TypeSyn types terms -> Doc ann
+prettyTypeSynBase (TypeSyn mbName typs tvs) = string "type_synonym" <+>
     prettyTypeVars (map TyVar tvs) <+>
     pretty mbName <+> string "=" <+> (quote . pretty) typs
 
-instance (Pretty terms, Pretty types) => Pretty (TypeDecl types terms) where
-  pretty (TypeDecl tdName tvs) = string "typedecl" <+>
+instance (Pretty terms, Pretty types) => Pretty (TypeSyn types terms) where
+  pretty = prettyTypeSynBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (TypeSyn types terms) where
+  ansiP = prettyTypeSynBase
+
+prettyTypeDeclBase :: (Pretty terms, Pretty types) => TypeDecl types terms -> Doc ann
+prettyTypeDeclBase (TypeDecl tdName tvs) = string "typedecl" <+>
     prettyTypeVars (map TyVar tvs) <+> pretty tdName
 
+instance (Pretty terms, Pretty types) => Pretty (TypeDecl types terms) where
+  pretty = prettyTypeDeclBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (TypeDecl types terms) where
+  ansiP = prettyTypeDeclBase
+
+prettyConstsBase :: (Pretty terms, Pretty types) => Consts types terms -> Doc ann
+prettyConstsBase (Consts sig) = string "consts" <+> pretty sig
+
 instance (Pretty terms, Pretty types) => Pretty (Consts types terms) where
-  pretty (Consts sig) = string "consts" <+> pretty sig 
+  pretty = prettyConstsBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Consts types terms) where
+  ansiP = prettyConstsBase
+
+prettyRecordBase :: (Pretty terms, Pretty types) => Record types terms -> Doc ann
+prettyRecordBase (Record rName rFields tvs) = string "record" <+>
+  prettyTypeVars (map TyVar tvs) <+>
+  pretty rName <+> string "=" `vcat2` 
+  (vsep (map (\rf -> let RecField n t = rf in indent 2 (pretty n <+> string "::" <+> (quote . pretty) t)) rFields))
 
 instance (Pretty terms, Pretty types) => Pretty (Record types terms) where
-  pretty (Record rName rFields tvs) = string "record" <+>
-    prettyTypeVars (map TyVar tvs) <+>
-    pretty rName <+> string "=" `vcat2` 
-    (vsep (map (\rf -> let RecField n t = rf in indent 2 (pretty n <+> string "::" <+> (quote . pretty) t)) rFields))
+  pretty = prettyRecordBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Record types terms) where
+  ansiP = prettyRecordBase
+
+prettyDTConsBase :: (Pretty terms, Pretty types) => DTCons types terms -> Doc ann
+prettyDTConsBase (DTCons cn ts) = pretty cn <+> (hsep . map (quote . pretty) $ ts)
 
 instance (Pretty terms, Pretty types) => Pretty (DTCons types terms) where
-  pretty (DTCons cn ts) = pretty cn <+> (hsep . map (quote . pretty) $ ts)
+  pretty = prettyDTConsBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (DTCons types terms) where
+  ansiP = prettyDTConsBase
+
+prettyDatatypeBase :: (Pretty terms, Pretty types) => Datatype types terms -> Doc ann
+prettyDatatypeBase (Datatype dtName dtCons tvs) = string "datatype" <+>
+  prettyTypeVars (map TyVar tvs) <+>
+  pretty dtName <+> string "=" `vcat2` (vsep $ punctuate (char '|') $ map (indent 2 . pretty) dtCons)
 
 instance (Pretty terms, Pretty types) => Pretty (Datatype types terms) where
-  pretty (Datatype dtName dtCons tvs) = string "datatype" <+>
-    prettyTypeVars (map TyVar tvs) <+>
-    pretty dtName <+> string "=" `vcat2` (vsep $ punctuate (char '|') $ map (indent 2 . pretty) dtCons)
+  pretty = prettyDatatypeBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Datatype types terms) where
+  ansiP = prettyDatatypeBase
+ 
+prettyClassBase :: (Pretty terms, Pretty types) => Class types terms -> Doc ann
+prettyClassBase (Class spec body) = string "class" <+> pretty spec
+                             `vsep2` string "begin" 
+                             `vsep2` prettyThyDecls body <> string "end" `vsep2` empty
 
 instance (Pretty terms, Pretty types) => Pretty (Class types terms) where
-  pretty (Class spec body) = string "class" <+> pretty spec
-                               `vsep2` string "begin" 
-                               `vsep2` prettyThyDecls body <> string "end" `vsep2` empty
+  pretty = prettyClassBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Class types terms) where
+  ansiP = prettyClassBase
+
+prettyClassSpecBase :: (Pretty terms, Pretty types) => ClassSpec types terms -> Doc ann
+prettyClassSpecBase ClassSpec = error "TODO: instance Pretty (ClassSpec types terms)"  -- TODO: zilinc
 
 instance (Pretty terms, Pretty types) => Pretty (ClassSpec types terms) where
-  pretty ClassSpec = error "TODO: instance Pretty (ClassSpec types terms)"  -- TODO: zilinc
+  pretty = prettyClassSpecBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (ClassSpec types terms) where
+  ansiP = prettyClassSpecBase
+
+prettyInstantiationBase :: (Pretty terms, Pretty types) => Instantiation types terms -> Doc ann
+prettyInstantiationBase (Instantiation names arity body) = 
+  string "instantiation" <+> sep (punctuate (string "and") (map pretty names))
+  <+> string "::" <+> pretty arity
+  `vsep2` string "begin" 
+  `vsep2` prettyThyDecls body <> string "end" `vsep2` empty
 
 instance (Pretty terms, Pretty types) => Pretty (Instantiation types terms) where
-  pretty (Instantiation names arity body) = 
-    string "instantiation" <+> sep (punctuate (string "and") (map pretty names))
-    <+> string "::" <+> pretty arity
-    `vsep2` string "begin" 
-    `vsep2` prettyThyDecls body <> string "end" `vsep2` empty
+  pretty = prettyInstantiationBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Instantiation types terms) where
+  ansiP = prettyInstantiationBase
+
+prettyInstanceBase :: (Pretty terms, Pretty types) => Instance types terms -> Doc ann
+prettyInstanceBase (Instance head body) = 
+  string "instance" <+> pretty head
+  `vsep2` prettyThyDecls body
 
 instance (Pretty terms, Pretty types) => Pretty (Instance types terms) where
-  pretty (Instance head body) = 
-    string "instance" <+> pretty head
-    `vsep2` prettyThyDecls body
+  pretty = prettyInstanceBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Instance types terms) where
+  ansiP = prettyInstanceBase
 
 instance Pretty InstanceHead where
   pretty (InstanceHeadNo) = empty
@@ -280,17 +371,35 @@ instance Pretty InstanceHead where
   pretty (InstanceHeadIn name rel super) =
     pretty name <+> pretty rel <+> pretty super
 
+instance PrettyAnsi InstanceHead where
+  ansiP = pretty
+
 instance Pretty ClassRel where
   pretty ClassLessThan = string "<"
   pretty ClassSubsetOf = string "⊆"  -- FIXME: zilinc
 
-instance (Pretty types, Pretty terms) => Pretty (FunFunc types terms) where
-  pretty (FunFunc sig bd) = (encloseSep empty empty (string "and" <> space) (map pretty sig)) -- FIXME: `and' on a new line / zilinc
+instance PrettyAnsi ClassRel where
+  ansiP = pretty
+
+prettyFunFuncBase :: (Pretty types, Pretty terms) => FunFunc types terms -> Doc ann
+prettyFunFuncBase (FunFunc sig bd) = (encloseSep empty empty (string "and" <> space) (map pretty sig)) -- FIXME: `and' on a new line / zilinc
                             <+> string "where"
                             `vcat2` align (pretty bd)
 
+instance (Pretty types, Pretty terms) => Pretty (FunFunc types terms) where
+  pretty = prettyFunFuncBase
+
+instance (Pretty types, Pretty terms) => PrettyAnsi (FunFunc types terms) where
+  ansiP = prettyFunFuncBase
+
+prettyEquationsBase :: (Pretty types, Pretty terms) => Equations types terms -> Doc ann
+prettyEquationsBase (Equations terms) = vsep $ punctuate (space <> string "|") $ map (dquotes . pretty) terms
+
 instance (Pretty types, Pretty terms) => Pretty (Equations types terms) where
-  pretty (Equations terms) = vsep $ punctuate (space <> string "|") $ map (dquotes . pretty) terms
+  pretty = prettyEquationsBase
+
+instance (Pretty types, Pretty terms) => PrettyAnsi (Equations types terms) where
+  ansiP = prettyEquationsBase
 
 instance Pretty TheoremDecl where
   pretty (TheoremDecl mbName attributes)
@@ -301,21 +410,36 @@ instance Pretty TheoremDecl where
                   [] -> empty
                   attrs -> brackets . sep . punctuate comma $ map pretty attrs
 
+instance PrettyAnsi TheoremDecl where
+  ansiP = pretty
+
 instance Pretty Attribute where
   pretty (Attribute n [])   = string n
   pretty (Attribute n args) = string n <+> (hsep . map string $ args)
 
+instance PrettyAnsi Attribute where
+  ansiP = pretty
+
 instance Pretty Proof where
   pretty (Proof methods proofEnd) =
     (vsep . map (\m -> string "apply" <+> pretty m) $ methods) `vcat2` pretty proofEnd
+
+instance PrettyAnsi Proof where
+  ansiP = pretty
 
 instance Pretty ProofEnd where
   pretty e = string $ case e of
     ProofDone  -> "done"
     ProofSorry -> "sorry"
 
+instance PrettyAnsi ProofEnd where
+  ansiP = pretty
+
 instance Pretty Method where
   pretty = prettyMethodTopLevel 0
+
+instance PrettyAnsi Method where
+  ansiP = pretty
 
 prettyMethodTopLevel p m = case m of
   Method name []      -> string name
@@ -336,11 +460,20 @@ instance Pretty MethodModifier where
     MMOneOrMore -> string "+"
     MMGoalRestriction mbI -> brackets $ maybe empty (string . show) $ mbI
 
+instance PrettyAnsi MethodModifier where
+  ansiP = pretty
+
+prettyDefBase :: (Pretty terms, Pretty types) => Def types terms -> Doc ann
+prettyDefBase def = string "definition" <> mbSig `vcat2` indent 2 (quote (pretty (defTerm def)))
+  where mbSig = case defSig def of 
+                  Just sig -> empty `vcat2` indent 2 (pretty sig) `vcat2` string "where" 
+                  Nothing  -> empty
+
 instance (Pretty terms, Pretty types) => Pretty (Def types terms) where
-  pretty def = string "definition" <> mbSig `vcat2` indent 2 (quote (pretty (defTerm def)))
-    where mbSig = case defSig def of 
-                    Just sig -> empty `vcat2` indent 2 (pretty sig) `vcat2` string "where" 
-                    Nothing  -> empty
+  pretty = prettyDefBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Def types terms) where
+  ansiP = prettyDefBase
 
 prettyOv specDef sig = string "overloading" <> mbSig
                   `vcat2` string "begin"
@@ -359,20 +492,35 @@ prettyOv specDef sig = string "overloading" <> mbSig
                 string "definition " <> pretty specSig <> string ": " <> quote (pretty (defTerm specDef))
               _ -> empty
 
+prettySigBase :: Pretty types => Sig types -> Doc ann
+prettySigBase d = string (sigName d) <> mbTyp
+  where mbTyp = case sigType d of
+                  Just typ -> empty <+> string "::" <+> quote (pretty typ)
+                  Nothing  -> empty
+
 instance Pretty types => Pretty (Sig types) where
-  pretty d = string (sigName d) <> mbTyp
-    where mbTyp = case sigType d of
-                    Just typ -> empty <+> string "::" <+> quote (pretty typ)
-                    Nothing  -> empty
+  pretty = prettySigBase
+
+instance Pretty types => PrettyAnsi (Sig types) where
+  ansiP = prettySigBase
+
+prettyAbbrevBase :: (Pretty terms, Pretty types) => Abbrev types terms -> Doc ann
+prettyAbbrevBase a = string "abbreviation" <+> mbSig `vcat2` pretty (abbrevTerm a)
+  where mbSig = case abbrevSig a of 
+                  Just sig -> pretty sig <+> string "where" 
+                  Nothing  -> empty
 
 instance (Pretty terms, Pretty types) => Pretty (Abbrev types terms) where
-  pretty a = string "abbreviation" <+> mbSig `vcat2` pretty (abbrevTerm a)
-    where mbSig = case abbrevSig a of 
-                    Just sig -> pretty sig <+> string "where" 
-                    Nothing  -> empty
+  pretty = prettyAbbrevBase
+
+instance (Pretty terms, Pretty types) => PrettyAnsi (Abbrev types terms) where
+  ansiP = prettyAbbrevBase
 
 instance Pretty TheoryImports where
   pretty (TheoryImports is) = string "imports" <+> fillSep (map (quote . string) is)
+
+instance PrettyAnsi TheoryImports where
+  ansiP = pretty
 
 -- improved PrettyPlus for theories
 

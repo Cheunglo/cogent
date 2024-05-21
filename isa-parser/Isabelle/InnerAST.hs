@@ -295,8 +295,14 @@ instance Pretty Ident where
     Wildcard         -> string "_"
     TypedIdent id ty -> pretty id <+> string "::" <+> pretty ty
 
+instance PrettyAnsi Ident where
+  ansiP = pretty
+
 instance Pretty Term where
   pretty = prettyTerm 0
+
+instance PrettyAnsi Term where
+  ansiP = pretty
 
 instance Pretty PrimType where
   pretty ty = string $ case ty of
@@ -304,8 +310,14 @@ instance Pretty PrimType where
     BoolT -> "bool"
     NatT  -> "nat"
 
+instance PrettyAnsi PrimType where
+  ansiP = pretty
+
 instance Pretty Type where
   pretty = prettyType 0
+
+instance PrettyAnsi Type where
+  ansiP = pretty
 
 tyArrowSym = "\\<Rightarrow>"
 tyTupleSym = "\\<times>"
@@ -344,9 +356,15 @@ instance Pretty Const where
     Top    -> string "\\<top>"
     Bottom -> string "\\<bottom>"
 
+instance PrettyAnsi Const where
+  ansiP = pretty
+
 instance Pretty Arity where
   pretty (Arity Nothing n) = string n
   pretty (Arity (Just ns) n) = parens (sep $ punctuate comma $ map string ns) <+> string n
+
+instance PrettyAnsi Arity where
+  ansiP = pretty
 
 -- We provide an alternative prettyprinter for better readability of terms (in function definitions).
 -- It is only intended for the shallow embedding which should be read and understood by humans.

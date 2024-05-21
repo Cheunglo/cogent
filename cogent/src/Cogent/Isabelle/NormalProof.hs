@@ -26,18 +26,22 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Set as S
 import System.FilePath ((</>))
-import Text.PrettyPrint.ANSI.Leijen as L (Doc, pretty, string, (<$>))
+--import Text.PrettyPrint.ANSI.Leijen as L (Doc, pretty, string, (<$>))
+import Prettyprinter (Doc)
+import Prettyprinter.Render.Terminal (AnsiStyle)
+import Isabelle.PrettyAnsi (ansiP, string, vsep2)
 
-normalProof :: String -> MapTypeName -> [Definition TypedExpr VarName b] -> String -> Doc
+
+normalProof :: String -> MapTypeName -> [Definition TypedExpr VarName b] -> String -> Doc AnsiStyle
 normalProof thy typeMap defs log =
   let sdthy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar
       snthy = thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGNormal
-      header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+      header = (string ("(*\n" ++ log ++ "\n*)\n") `vsep2`)
       theory = O.Theory { thyName = thy ++ __cogent_suffix_of_normal_proof
                         , thyImports = imports thy
                         , thyBody = genDesugarNormalProof sdthy snthy typeMap defs
                         } :: O.Theory I.Type I.Term
-   in header $ L.pretty theory
+   in header $ ansiP theory
 
 imports :: String -> TheoryImports
 imports thy =

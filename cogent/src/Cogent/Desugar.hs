@@ -68,7 +68,8 @@ import Data.Maybe
 import Data.Word (Word32)
 import Prelude as P
 import Data.Traversable (forM)
-import Text.PrettyPrint.ANSI.Leijen (pretty)
+--import Text.PrettyPrint.ANSI.Leijen (pretty)
+import Isabelle.PrettyAnsi (ansiP)
 -- import qualified Traversable as Trav (mapM)
 
 import Debug.Trace
@@ -637,7 +638,7 @@ desugarType = \case
            <*> desugarSigil sigil
            <*> pure tkns'
 #endif
-  notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
+  notInWHNF -> __impossible $ "desugarType (type " ++ show (ansiP notInWHNF) ++ " is not in WHNF)"
 
 -- This function is easier to be defined here, at it needs access to the Desugar monad.
 desugarLayout :: DataLayoutExpr -> DS t l v (DataLayout BitRange)

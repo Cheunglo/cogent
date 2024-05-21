@@ -31,12 +31,15 @@ import Isabelle.OuterAST as O hiding (Instance)
 import Control.Arrow (second)
 import Data.Map hiding (map, null)
 import System.FilePath ((</>))
-import Text.PrettyPrint.ANSI.Leijen as L (Doc, Pretty, pretty, string, (<$>))
+--import Text.PrettyPrint.ANSI.Leijen as L (Doc, Pretty, pretty, string, (<$>))
+import Prettyprinter (Doc)
+import Prettyprinter.Render.Terminal (AnsiStyle)
+import Isabelle.PrettyAnsi (PrettyAnsi, ansiP, string, vsep2)
 
 
-monoProof :: (Ord b, Pretty b) => String -> FunMono b -> String -> Doc
+monoProof :: (Ord b, PrettyAnsi b) => String -> FunMono b -> String -> Doc AnsiStyle
 monoProof source funMono log =
-  let header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+  let header = (string ("(*\n" ++ log ++ "\n*)\n") `vsep2`)
       thy = mkProofName source (Just __cogent_suffix_of_mono_proof)
       imports = TheoryImports
                   [ "Cogent.Mono_Tac"
@@ -45,7 +48,7 @@ monoProof source funMono log =
                   , mkProofName source (Just $ __cogent_suffix_of_deep ++ __cogent_suffix_of_stage STGNormal)
                   ]
       body = [ rename funMono, monoRename, monoExprThms source ]
-   in header $ L.pretty $ O.Theory thy imports body
+   in header $ ansiP $ O.Theory thy imports body
 
 monoRename :: TheoryDecl I.Type I.Term
 monoRename = TheoryString $ unlines
@@ -92,7 +95,7 @@ monoExprThms src = ContextDecl $ Context "value_sem" $ ctxBody
  - Define a HOL association-list. It will be processed into a function using AssocLookup.thy.
  - (Yes, this is actually much more efficient than writing a function definition. Don't ask.)
  -}
-rename :: (Ord b, Pretty b) => FunMono b -> TheoryDecl I.Type I.Term
+rename :: (Ord b, PrettyAnsi b) => FunMono b -> TheoryDecl I.Type I.Term
 rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_name) \<equiv> $def" |]
   where
     alist_name = __fixme "rename__assocs" -- should be parameter
@@ -104,11 +107,11 @@ rename funMono = [isaDecl| definition $alist_name :: "$sig" where "$(mkId alist_
 
     subscript fn num =  fn ++ "_" ++ show num
 
-    mkInst :: (Ord b, Pretty b) => (FunName, [(Instance b, Int)]) -> [(Term, Term, Term)]
+    mkInst :: (Ord b, PrettyAnsi b) => (FunName, [(Instance b, Int)]) -> [(Term, Term, Term)]
     mkInst (fn,insts) = let safeName = unIsabelleName $ mkIsabelleName fn
       in  if null insts
             then [([isaTerm| $(mkString safeName) |], [isaTerm| Nil |], [isaTerm| $(mkString safeName) |])]
             else __fixme $ map (\((tys,_),num) -> ([isaTerm| $(mkString safeName) |], mkTyList tys, [isaTerm| $(mkString (subscript safeName num)) |])) insts  -- FIXME: currently second part of instance (data layouts) is ignored
 
-    mkTyList :: (Ord b, Pretty b) => [CC.Type 'Zero b] -> Term
+    mkTyList :: (Ord b, PrettyAnsi b) => [CC.Type 'Zero b] -> Term
     mkTyList = I.mkList . map (deepType id (empty, 0))

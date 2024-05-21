@@ -68,8 +68,11 @@ import qualified Data.Set as S
 import Numeric
 import Prelude as P
 import System.FilePath ((</>))
-import Text.PrettyPrint.ANSI.Leijen (Doc, pretty, string)
-import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$$>))
+--import Text.PrettyPrint.ANSI.Leijen (Doc, pretty, string)
+--import qualified Text.PrettyPrint.ANSI.Leijen as L ((<$$>))
+import Prettyprinter (Doc)
+import Prettyprinter.Render.Terminal (AnsiStyle)
+import Isabelle.PrettyAnsi (ansiP, string, vcat2)
 import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
@@ -947,7 +950,7 @@ toCaseLemma (SCCD {..}) = let
                 " x)) (Case x' " ++ tagString ++ " match' rest') \\<gamma> \\<xi>"
     shallowCase tag' | tag == tag' = "match"
                      | otherwise   = "(\\<lambda>x. co (" ++ bigType ++ "." ++ tag' ++ " x))"
-    tagString = show $ pretty $ mkString tag
+    tagString = show $ ansiP $ mkString tag
     methods = [ Method "clarsimp" ["simp:", "scorres_def", "shallow_tac__var_def", "valRel_" ++ bigType]
               , Method "erule" ["v_sem_caseE"] ] ++
               (concat $ replicate 2 $
@@ -962,7 +965,7 @@ toCaseLemma (SCED {..}) = let
   thmName = "scorres_esac_"  ++ mangleNames [bigType, tag]
   shallowEsac tag' | tag == tag' = "Fun.id"
                    | otherwise   = "undefined"
-  tagString = show $ pretty $ mkString tag
+  tagString = show $ ansiP $ mkString tag
   propStr = "scorres x x' \\<gamma> \\<xi> \\<Longrightarrow> "++
             "scorres (case_" ++ bigType ++ " " ++ unwords (map shallowEsac typeStr) ++
             " x) (Esac x' " ++ tagString ++ ") \\<gamma> \\<xi>"
@@ -984,7 +987,7 @@ toCaseLemma (SCFD {..}) = let
 
     deep_cont_of_tag  tag        = deep_cont_of_tag' tag all_ixs
     deep_cont_of_tag' tag []     = "undefined"
-    deep_cont_of_tag' tag (i:is) = unwords ["if", tag_at i, "=", show $ pretty $ mkString tag
+    deep_cont_of_tag' tag (i:is) = unwords ["if", tag_at i, "=", show $ ansiP $ mkString tag
                                            , "then", deep_cont i
                                            , "else", deep_cont_of_tag' tag is]
 
@@ -992,7 +995,7 @@ toCaseLemma (SCFD {..}) = let
 
     gamma_of_tag  tag v'         = gamma_of_tag' tag v' all_ixs
     gamma_of_tag' tag v' []      = "undefined"
-    gamma_of_tag' tag v' (i:is)  = unwords ["if", tag_at i, "=", show $ pretty $ mkString tag
+    gamma_of_tag' tag v' (i:is)  = unwords ["if", tag_at i, "=", show $ ansiP $ mkString tag
                                            , "then", gamma_of_ix i v'
                                            , "else", gamma_of_tag' tag v' is]
 
@@ -1157,13 +1160,13 @@ shallowFile thy stg defs = do
            )
 
 -- | Returns @(shallow, shallow_shared, scorres, type names)@
-shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition TypedExpr VarName b] -> String -> (Doc, Doc, Doc, MapTypeName)
+shallow :: (Show b,Eq b) => Bool -> String -> Stage -> [Definition TypedExpr VarName b] -> String -> (Doc AnsiStyle, Doc AnsiStyle, Doc AnsiStyle, MapTypeName)
 shallow recoverTuples thy stg defs log =
   let (shal,shrd,scor,typeMap) = fst $ evalRWS (runSG (shallowFile thy stg defs))
                                                (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs) True)
                                                (StateGen 0)
-      header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
-  in (header (if recoverTuples then I.prettyPlus shal else pretty shal), header $ pretty shrd, header $ pretty scor, typeMap)
+      header = (string ("(*\n" ++ log ++ "\n*)\n") `vcat2`)
+  in (header (if recoverTuples then I.prettyPlus shal else ansiP shal), header $ ansiP shrd, header $ ansiP scor, typeMap)
 
 genConstDecl :: CC.CoreConst TypedExpr -> SG VarName (TheoryDecl I.Type I.Term)
 genConstDecl (vn, te@(TE ty expr)) = do
@@ -1173,9 +1176,9 @@ genConstDecl (vn, te@(TE ty expr)) = do
       term = [isaTerm| $nm \<equiv> $e |]
   pure $ Definition (Def (Just (Sig (snm vn) (Just t))) term)
 
-shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst TypedExpr] -> [Definition TypedExpr VarName VarName] -> String -> Doc
+shallowConsts :: Bool -> String -> Stage -> [CC.CoreConst TypedExpr] -> [Definition TypedExpr VarName VarName] -> String -> Doc AnsiStyle
 shallowConsts recoverTuples thy stg consts defs log =
-  header $ pretty (Theory (thy ++ __cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg ++
+  header $ ansiP (Theory (thy ++ __cogent_suffix_of_shallow_consts ++ __cogent_suffix_of_stage stg ++
                            (if recoverTuples then __cogent_suffix_of_recover_tuples else ""))
                    (TheoryImports [thy ++ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg ++
                                    (if recoverTuples then __cogent_suffix_of_recover_tuples else "")])
@@ -1184,7 +1187,7 @@ shallowConsts recoverTuples thy stg consts defs log =
                                      (SGTables (st defs) (stsyn defs) [] recoverTuples (filterTypeDefs defs) True)
                                      (StateGen 0)
        shallowConsts = mapM genConstDecl
-       header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
+       header = (string ("(*\n" ++ log ++ "\n*)\n") `vcat2`)
 
 
 
@@ -1200,9 +1203,9 @@ shallowConsts recoverTuples thy stg consts defs log =
 -}
 
 shallowTuplesProof :: String -> String -> String -> String -> String ->
-                      MapTypeName -> [Definition TypedExpr VarName b] -> String -> Doc
+                      MapTypeName -> [Definition TypedExpr VarName b] -> String -> Doc AnsiStyle
 shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMap defs log =
-  header $ pretty (Theory (mkProofName baseName $ Just __cogent_suffix_of_shallow_tuples_proof)
+  header $ ansiP (Theory (mkProofName baseName $ Just __cogent_suffix_of_shallow_tuples_proof)
                    (TheoryImports [defThy, tupDefThy,
                                    "CogentShallow.ShallowTuples"])
                    (theorySetup ++
@@ -1212,7 +1215,7 @@ shallowTuplesProof baseName sharedDefThy defThy tupSharedDefThy tupDefThy typeMa
     thyBase = mkProofName baseName Nothing
     ruleBucket = "ShallowTuplesRules_" ++ thyBase
     proofBucket = "ShallowTuplesThms_" ++ thyBase
-    header = (string ("(*\n" ++ log ++ "\n*)\n") L.<$$>)
+    header = (string ("(*\n" ++ log ++ "\n*)\n") `vcat2`)
 
     -- Set up the lemma buckets.
     theorySetup =
