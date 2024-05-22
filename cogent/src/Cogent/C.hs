@@ -42,7 +42,9 @@ import Lens.Micro ((^.))
 import Data.Map as M
 import Data.Set as S
 import qualified Language.C as C (Definition)
-import Text.PrettyPrint.ANSI.Leijen as Leijen
+--import Text.PrettyPrint.ANSI.Leijen as Leijen
+import Prettyprinter (Doc)
+import Prettyprinter.Render.Terminal (AnsiStyle)
 
 cgen :: FilePath
      -> [FilePath]
@@ -53,7 +55,7 @@ cgen :: FilePath
      -> [(Type 'Zero VarName, String)]
      -> [Pragma_ VarName]
      -> String
-     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], [NewTableCTypes], Leijen.Doc, String, GenState)
+     -> ([C.Definition], [C.Definition], [(TypeName, S.Set [CId])], [TableCTypes], [NewTableCTypes], Doc AnsiStyle, String, GenState)
 cgen hName cNames hscName hsName defs mcache ctygen pragmas log =
   let (enums,tydefns,fndecls,disps,tysyms,fndefns,absts,corres,corres',fclsts,st) = compile defs mcache ctygen pragmas
       (h,c) = render hName (enums++tydefns++fndecls++disps++tysyms) fndefns log

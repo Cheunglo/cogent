@@ -88,7 +88,7 @@ import           System.FilePath (replaceBaseName, replaceExtension, takeBaseNam
 import           System.IO (hPutStrLn, stderr)
 import           Text.Parsec.Pos (newPos, SourcePos)
 import           Text.Parsec.Prim as PP hiding (State)
-import           Text.PrettyPrint.ANSI.Leijen (vsep)
+import           Prettyprinter (vsep)
 import           Unsafe.Coerce
 
 import           Debug.Trace

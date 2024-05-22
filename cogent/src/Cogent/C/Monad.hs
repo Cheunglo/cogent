@@ -90,7 +90,6 @@ import           Prelude             as P    hiding (mapM, mapM_)
 import           Prelude             as P    hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
-import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)

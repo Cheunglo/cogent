@@ -90,7 +90,10 @@ import           System.Exit                      hiding (exitFailure, exitSucce
 import           System.FilePath                  hiding ((</>))
 import           System.IO
 import           System.Process                   (readProcessWithExitCode)
-import           Text.PrettyPrint.ANSI.Leijen     as LJ (Doc, displayIO, hPutDoc, plain)
+--import           Text.PrettyPrint.ANSI.Leijen     as LJ (Doc, displayIO, hPutDoc, plain)
+import           Prettyprinter                    as LJ (Doc)
+import           Prettyprinter.Render.Terminal    as LJT (AnsiStyle, hPutDoc)
+import           Isabelle.PrettyAnsi              as LJI (displayIO, plain)
 #if MIN_VERSION_mainland_pretty(0,6,0)
 import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, string, (</>))
 import           Text.PrettyPrint.Mainland.Class  as M (ppr)
@@ -278,7 +281,7 @@ parseArgs args = case getOpt' Permute options args of
             tpthy  = thy ++ suf
         writeFileMsg tpfile
         let nfed'' = IN.unfoldSynsInDefs nfed'
-        output tpfile $ flip LJ.hPutDoc $
+        output tpfile $ flip LJT.hPutDoc $
           deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed'' log
       shallowTypeNames <-
         genShallow cmds source stg nfed' typedefs fts constdefs log (Shallow stg `elem` cmds,
@@ -289,7 +292,7 @@ parseArgs args = case getOpt' Permute options args of
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
         let nfed'' = IN.unfoldSynsInDefs nfed'
-        output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed'' log
+        output npfile $ flip LJT.hPutDoc $ normalProof thy shallowTypeNames nfed'' log
       when (Compile (succ stg) `elem` cmds) $
         simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
@@ -351,16 +354,16 @@ parseArgs args = case getOpt' Permute options args of
           when (MonoProof `elem` cmds) $ do
             let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
             writeFileMsg mpfile
-            output mpfile $ flip LJ.hPutDoc $ monoProof source (fst insts) log
+            output mpfile $ flip LJT.hPutDoc $ monoProof source (fst insts) log
           when (TypeProof STGMono `elem` cmds) $ do
             let tpfile = mkThyFileName source __cogent_suffix_of_type_proof
                 tpthy  = mkProofName source (Just __cogent_suffix_of_type_proof)
             writeFileMsg tpfile
-            output tpfile $ flip LJ.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
+            output tpfile $ flip LJT.hPutDoc $ deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy monoed' log
           when (AllRefine `elem` cmds) $ do
             let arfile = mkThyFileName source __cogent_suffix_of_all_refine
             writeFileMsg arfile
-            output arfile $ flip LJ.hPutDoc $ allRefine source log
+            output arfile $ flip LJT.hPutDoc $ allRefine source log
           when (Root `elem` cmds) $ do
             let rtfile = if __cogent_fdump_to_stdout then Nothing else Just $ __cogent_dist_dir `combine` __cogent_root_name
             writeFileMsg rtfile
@@ -411,7 +414,7 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating Hsc file..."
         let hscf = mkHscFileName source __cogent_suffix_of_ffi_types
         writeFileMsg hscf
-        output hscf $ flip LJ.hPutDoc hsc
+        output hscf $ flip LJT.hPutDoc hsc
         putProgressLn "Generating Hs file..."
         let hsf = mkHsFileName source __cogent_suffix_of_ffi
         writeFileMsg hsf
@@ -449,13 +452,13 @@ parseArgs args = case getOpt' Permute options args of
         putProgressLn "Generating lemmas for C-refinement..."
         let corresSetupThy = corresSetup thy inputc log
         writeFileMsg csfile
-        output csfile $ flip LJ.hPutDoc corresSetupThy
+        output csfile $ flip LJT.hPutDoc corresSetupThy
       when cp $ do
         putProgressLn "Generating C-refinement proofs..."
         ent <- T.forM __cogent_entry_funcs simpleLineParser  -- a simple parser
         let corresProofThy = corresProof thy inputc (map SY.CoreFunName confns) (map SY.CoreFunName <$> ent) log
         writeFileMsg cpfile
-        output cpfile $ flip LJ.hPutDoc corresProofThy
+        output cpfile $ flip LJT.hPutDoc corresProofThy
 
     glue cmds tced tcst typedefs fts insts genst tsyndefs buildinfo log = do
       putProgressLn "Generating glue code..."
@@ -514,7 +517,7 @@ parseArgs args = case getOpt' Permute options args of
           de = deep thy stg defns' log
       putProgressLn ("Generating deep embedding (" ++ stgMsg stg ++ ")...")
       writeFileMsg dpfile
-      output dpfile $ flip LJ.hPutDoc de
+      output dpfile $ flip LJT.hPutDoc de
 
     genShallow cmds source stg defns typedefs fts constdefs log (False,False,False,False,False,False,False,False) = return empty
     genShallow cmds source stg defns typedefs fts constdefs log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
@@ -552,9 +555,9 @@ parseArgs args = case getOpt' Permute options args of
       when sh $ do
         putProgressLn ("Generating shallow embedding (" ++ stgMsg stg ++ ")...")
         writeFileMsg ssfile
-        output ssfile $ flip LJ.hPutDoc shrd
+        output ssfile $ flip LJT.hPutDoc shrd
         writeFileMsg shfile
-        output shfile $ flip LJ.hPutDoc shal
+        output shfile $ flip LJT.hPutDoc shal
 #ifdef WITH_HASKELL
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
@@ -564,17 +567,17 @@ parseArgs args = case getOpt' Permute options args of
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
         writeFileMsg ksfile
-        output ksfile $ flip LJ.hPutDoc $ shallowConsts False thy stg constdefs defns log
+        output ksfile $ flip LJT.hPutDoc $ shallowConsts False thy stg constdefs defns log
       when sc $ do
         putProgressLn ("Generating scorres (" ++ stgMsg stg ++ ")...")
         writeFileMsg scfile
-        output scfile $ flip LJ.hPutDoc scorr
+        output scfile $ flip LJT.hPutDoc scorr
       when sh_tup $ do
         putProgressLn ("Generating shallow embedding (with HOL tuples)...")
         writeFileMsg ss_tupfile
-        output ss_tupfile $ flip LJ.hPutDoc shrd_tup
+        output ss_tupfile $ flip LJT.hPutDoc shrd_tup
         writeFileMsg sh_tupfile
-        output sh_tupfile $ flip LJ.hPutDoc shal_tup
+        output sh_tupfile $ flip LJT.hPutDoc shal_tup
 #ifdef WITH_HASKELL
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
@@ -584,12 +587,12 @@ parseArgs args = case getOpt' Permute options args of
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
         writeFileMsg ks_tupfile
-        output ks_tupfile $ flip LJ.hPutDoc $ shallowConsts True thy stg constdefs defns log
+        output ks_tupfile $ flip LJT.hPutDoc $ shallowConsts True thy stg constdefs defns log
 
       when tup_proof $ do
         putProgressLn ("Generating shallow tuple proof...")
         writeFileMsg tup_prooffile
-        output tup_prooffile $ flip LJ.hPutDoc tup_proof_thy
+        output tup_prooffile $ flip LJT.hPutDoc tup_proof_thy
       return shallowTypeNames
 
     genBuildInfo cmds buildinfo =
@@ -613,7 +616,7 @@ parseArgs args = case getOpt' Permute options args of
 
     versionInfo = UT.getCogentVersion
     -- Depending on the target of output, switch on or off fonts
-    fontSwitch :: Handle -> IO (Doc -> Doc)
+    fontSwitch :: Handle -> IO (Doc AnsiStyle -> Doc AnsiStyle)
     fontSwitch h = hIsTerminalDevice h >>= \isTerminal ->
                      return $ if isTerminal && __cogent_fpretty_errmsgs then id else plain
     -- Commnad line parsing error

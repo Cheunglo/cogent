@@ -93,7 +93,10 @@ import           Prelude             as P     hiding (mapM, mapM_)
 import           Prelude             as P     hiding (mapM)
 #endif
 import           System.IO (Handle, hPutChar)
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
+--import qualified Text.PrettyPrint.ANSI.Leijen as PP
+import qualified Prettyprinter as PP
+import qualified Prettyprinter.Render.Terminal as PT
+import qualified Isabelle.PrettyAnsi as PI
 
 
 -- import Debug.Trace
@@ -1032,58 +1035,58 @@ printATM = L.concat . L.map (\(tn,S.toList -> ls) -> tn ++ "\n" ++
 
 newtype TableCTypes = TableCTypes (CId, CC.Type 'Zero VarName, [(Maybe FunName, Maybe FunName)])
 
-printCTable :: (PP.Pretty tentry)
-            => Handle -> (PP.Doc -> PP.Doc) -> [tentry] -> String -> IO ()
-printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PP.displayIO h . PP.renderPretty 0 80 . m) $
-                           L.map (PP.string . ("-- " ++)) (lines log) ++ PP.line : L.map PP.pretty ts
+printCTable :: (PI.PrettyAnsi tentry)
+            => Handle -> (PP.Doc PT.AnsiStyle -> PP.Doc PT.AnsiStyle ) -> [tentry] -> String -> IO ()
+printCTable h m ts log = mapM_ ((>> hPutChar h '\n') . PI.displayIO h . PI.renderPretty 0 80 . m) $
+                           L.map (PI.string . ("-- " ++)) (lines log) ++ PP.line : L.map PI.ansiP ts
 
-instance PP.Pretty TableCTypes where
-  pretty (TableCTypes (n,t,gss)) =
-      PP.pretty (deepType id (M.empty, 0) t)
-      PP.<+> PP.string ":=:" PP.<+> PP.pretty n
+instance PI.PrettyAnsi TableCTypes where
+  ansiP (TableCTypes (n,t,gss)) =
+      PI.ansiP (deepType id (M.empty, 0) t)
+      PP.<+> PI.string ":=:" PP.<+> PI.ansiP n
       PP.<> prettyGetterSetters gss
-    where prettyGetterSetters [] = PP.empty
+    where prettyGetterSetters [] = PI.empty
           prettyGetterSetters ps =
             PP.space PP.<>
             PP.lbracket PP.<>
             PP.hsep (PP.punctuate PP.comma $ map prettyGetterSetter ps) PP.<>
             PP.rbracket
 
-          maybeP _ Nothing  = PP.text "_"
+          maybeP _ Nothing  = PI.text "_"
           maybeP p (Just x) = p x
 
           prettyGetterSetter (getter, setter) =
-            maybeP PP.text getter PP.<+> PP.text "/" PP.<+> maybeP PP.text setter
+            maybeP PI.text getter PP.<+> PI.text "/" PP.<+> maybeP PI.text setter
 
 
 newtype NewTableCTypes = NewTableCTypes (CId, Sort)
 
-instance PP.Pretty NewTableCTypes where
-  pretty (NewTableCTypes (n,s)) =
-    PP.pretty n PP.<+> PP.string ":=:" PP.<+> prettySort s
+instance PI.PrettyAnsi NewTableCTypes where
+  ansiP (NewTableCTypes (n,s)) =
+    PI.ansiP n PP.<+> PI.string ":=:" PP.<+> prettySort s
 
     where
-      prettySort :: Sort -> PP.Doc
+      prettySort :: Sort -> PP.Doc PT.AnsiStyle
       prettySort (SRecord ss ma) =
-        PP.text "TRecord" PP.<+>
+        PI.text "TRecord" PP.<+>
         PP.brackets (PP.hsep $ PP.punctuate PP.comma $ map prettySigil $ DList.toList ss) PP.<>
-        (case ma of Nothing -> PP.empty; Just as -> PP.empty PP.<+> prettyAccessors as)
-      prettySort SVariant     = PP.text "TVariant"
-      prettySort SAbstract    = PP.text "TCon"
+        (case ma of Nothing -> PI.empty; Just as -> PI.empty PP.<+> prettyAccessors as)
+      prettySort SVariant     = PI.text "TVariant"
+      prettySort SAbstract    = PI.text "TCon"
 
-      prettySigil (Unboxed)       = PP.text "Unboxed"
-      prettySigil (Boxed True  _) = PP.text "ReadOnly"
-      prettySigil (Boxed False _) = PP.text "Writable"
+      prettySigil (Unboxed)       = PI.text "Unboxed"
+      prettySigil (Boxed True  _) = PI.text "ReadOnly"
+      prettySigil (Boxed False _) = PI.text "Writable"
 
-      prettyAccessors :: RecordAccessors -> PP.Doc
+      prettyAccessors :: RecordAccessors -> PP.Doc PT.AnsiStyle
       prettyAccessors ((map snd . OMap.toList) -> fs) =
         PP.brackets $ PP.hsep $ PP.punctuate PP.comma (map prettyAccessor fs)
 
-      prettyAccessor :: (Maybe FunName, Maybe FunName) -> PP.Doc
-      prettyAccessor (mg, ms) = prettyMaybe mg PP.<+> PP.text "/" PP.<+> prettyMaybe ms
+      prettyAccessor :: (Maybe FunName, Maybe FunName) -> PP.Doc PT.AnsiStyle
+      prettyAccessor (mg, ms) = prettyMaybe mg PP.<+> PI.text "/" PP.<+> prettyMaybe ms
 
-      prettyMaybe Nothing  = PP.text "_"
-      prettyMaybe (Just f) = PP.text f
+      prettyMaybe Nothing  = PI.text "_"
+      prettyMaybe (Just f) = PI.text f
 
 
 -- ////////////////////////////////////////////////////////////////////////////

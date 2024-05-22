@@ -20,12 +20,15 @@ import Isabelle.InnerAST as I
 import Isabelle.OuterAST as O
 import Cogent.Isabelle.IsabelleName
 import System.FilePath ((</>))
-import qualified Text.PrettyPrint.ANSI.Leijen as L
+--import qualified Text.PrettyPrint.ANSI.Leijen as L
+import Prettyprinter (Doc)
+import Prettyprinter.Render.Terminal (AnsiStyle)
+import Isabelle.PrettyAnsi (ansiP, string, vsep2)
 
-corresProof :: String -> String -> [CoreFunName] -> Maybe [CoreFunName] -> String -> L.Doc
+corresProof :: String -> String -> [CoreFunName] -> Maybe [CoreFunName] -> String -> Doc AnsiStyle
 corresProof thy cfile fns ent log =
   let fns' = map (toCName . unCoreFunName) fns
-      header = (L.string ("(*\n" ++ log ++ "\n*)\n") L.<$>)
+      header = (string ("(*\n" ++ log ++ "\n*)\n") `vsep2`)
       theory = O.Theory { thyName = thy ++ __cogent_suffix_of_corres_proof
                         , thyImports = imports thy
                         , thyBody = [TheoryString . unlines $
@@ -33,7 +36,7 @@ corresProof thy cfile fns ent log =
                                      setupFunctionValRel thy ++
                                      context thy cfile fns' ent]
                         } :: O.Theory I.Type I.Term
-   in header $ L.pretty theory
+   in header $ ansiP theory
 
 imports :: String -> TheoryImports
 imports thy = TheoryImports

@@ -76,8 +76,13 @@ import System.Exit (exitSuccess)
 import System.IO
 import Text.Parsec hiding (string)
 import Text.Parsec.String
-import Text.PrettyPrint.ANSI.Leijen as Leijen hiding ((<$>), char, indent)
-import qualified Text.PrettyPrint.ANSI.Leijen as Leijen ((<$>))
+--import Text.PrettyPrint.ANSI.Leijen as Leijen hiding ((<$>), char, indent)
+--import qualified Text.PrettyPrint.ANSI.Leijen as Leijen ((<$>))
+import Prettyprinter hiding (indent)
+import Prettyprinter.Render.Terminal
+import Isabelle.PrettyAnsi hiding (char)
+
+
 
 data ILit = LU8  Word8
           | LU16 Word16
@@ -138,41 +143,41 @@ instance (Prec a, Prec f) => Prec (HNF a f) where
   prec (VAbstract {}) = 0
   prec (VAFunction {}) = 0
 
-instance Pretty ILit where
-  pretty x = literal $ integer $ toInt x
+instance PrettyAnsi ILit where
+  ansiP x = literal $ integer $ toInt x
 
-instance (Pretty a, Pretty f, Prec (Value a f), Pretty (HNF a f)) => Pretty (Value a f) where
-  pretty (VInt l) = pretty l
-  pretty (VBool b) = literal (string $ show b)
-  pretty (VString s) = literal (string $ show s)
-  pretty (VUnit) = string "()"
-  pretty (VRecord fs) = record $ fmap (\(f,mv) -> fieldname f <+> symbol "=" <+> (case mv of Nothing -> symbol "●"; Just v -> pretty v)) fs
-  pretty (VVariant tag v) = tagname tag <+> prettyPrec 1 v
-  pretty (VProduct v1 v2) = Pretty.tupled [pretty v1, pretty v2]
-  pretty (VFunction fn e ts) = funname fn <> typeargs (fmap pretty ts)
-  pretty (VThunk nf) = pretty nf
+instance (PrettyAnsi a, PrettyAnsi f, Prec (Value a f), PrettyAnsi (HNF a f)) => PrettyAnsi (Value a f) where
+  ansiP (VInt l) = ansiP l
+  ansiP (VBool b) = literal (string $ show b)
+  ansiP (VString s) = literal (string $ show s)
+  ansiP (VUnit) = string "()"
+  ansiP (VRecord fs) = record $ fmap (\(f,mv) -> fieldname f <+> symbol "=" <+> (case mv of Nothing -> symbol "●"; Just v -> ansiP v)) fs
+  ansiP (VVariant tag v) = tagname tag <+> prettyPrec 1 v
+  ansiP (VProduct v1 v2) = Pretty.tupled [ansiP v1, ansiP v2]
+  ansiP (VFunction fn e ts) = funname fn <> typeargs (fmap ansiP ts)
+  ansiP (VThunk nf) = ansiP nf
 
-instance (Pretty a, Pretty f, Prec a, Prec f, Pretty (Value a f), Prec (HNF a f))
-      => Pretty (HNF a f) where
-  pretty (VOp n [a,b])
+instance (PrettyAnsi a, PrettyAnsi f, Prec a, Prec f, PrettyAnsi (Value a f), Prec (HNF a f))
+      => PrettyAnsi (HNF a f) where
+  ansiP (VOp n [a,b])
     | LeftAssoc  l <- associativity n = prettyPrec (l+1) a <+> primop n <+> prettyPrec l     b
     | RightAssoc l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec (l+1) b
     | NoAssoc    l <- associativity n = prettyPrec l     a <+> primop n <+> prettyPrec l     b
-  pretty (VOp n [e])
+  ansiP (VOp n [e])
     | a  <- associativity n = primop n <+> prettyPrec (prec a) e
 
-  pretty (VApp v1 v2) = prettyPrec 10 v1 <+> prettyPrec 9 v2
-  pretty (VIf c v1 v2) = keyword "if" <+> pretty c
-              Leijen.<$> indent (keyword "then" <+> pretty v1)
-              Leijen.<$> indent (keyword "else" <+> pretty v2)
-  pretty (VCase s tn (a1,v1) (a2,v2)) = keyword "case" <+> pretty s <+> keyword "of"
-                             Leijen.<$> indent (tagname tn <+> varname a1 <+> symbol "->" <+> pretty v1)
-                             Leijen.<$> indent (varname a2 <+> symbol "->" <+> pretty v2)
-  pretty (VEsac v) = keyword "esac" <+> prettyPrec 9 v
-  pretty (VMember r f) = prettyPrec 9 r <> symbol "." <> fieldname f
-  pretty (VPut r f v) = prettyPrec 10 r <+> record [fieldname f <+> symbol "=" <+> pretty v]
-  pretty (VAbstract _) = dullred $ keyword "\x2753"
-  pretty (VAFunction fn f ts) = dullred (keyword "\x300A") <> funname fn <> typeargs (fmap pretty ts) <> dullred (keyword "\x300B")
+  ansiP (VApp v1 v2) = prettyPrec 10 v1 <+> prettyPrec 9 v2
+  ansiP (VIf c v1 v2) = keyword "if" <+> ansiP c
+              `vsep2` indent (keyword "then" <+> ansiP v1)
+              `vsep2` indent (keyword "else" <+> ansiP v2)
+  ansiP (VCase s tn (a1,v1) (a2,v2)) = keyword "case" <+> ansiP s <+> keyword "of"
+                             `vsep2` indent (tagname tn <+> varname a1 <+> symbol "->" <+> ansiP v1)
+                             `vsep2` indent (varname a2 <+> symbol "->" <+> ansiP v2)
+  ansiP (VEsac v) = keyword "esac" <+> prettyPrec 9 v
+  ansiP (VMember r f) = prettyPrec 9 r <> symbol "." <> fieldname f
+  ansiP (VPut r f v) = prettyPrec 10 r <+> record [fieldname f <+> symbol "=" <+> ansiP v]
+  ansiP (VAbstract _) = dullred $ keyword "\x2753"
+  ansiP (VAFunction fn f ts) = dullred (keyword "\x300A") <> funname fn <> typeargs (fmap ansiP ts) <> dullred (keyword "\x300B")
 
 
 newtype ReplM (v :: Nat) a f x = ReplM { unReplM :: StateT (ReplState v a f) IO x }
@@ -239,7 +244,7 @@ repl r = do putStr "cogenti> "
               Right (LoadCode c) -> loadCode r c
               Right (Reload    ) -> reloadFile r
               Right (Clear     ) -> writeIORef r mempty
-              Right (Display   ) -> readIORef r >>= \st -> putDoc (vcat $ fmap pretty (surface st) ++ [empty])
+              Right (Display   ) -> readIORef r >>= \st -> putDoc (vcat $ fmap ansiP (surface st) ++ [empty])
               Right (Help) -> putStr $ unlines [ "Cogent REPL:"
                                                , "  :e <EXPR> ;  -- evaluate an expression"
                                                , "  :t <EXPR> ;  -- query the type of an expression"
@@ -354,7 +359,7 @@ interpExpr q r input =
           Nothing     -> __impossible "intrepExpr: no errors found"
           Just typedE -> do
             case q of
-              QType  -> putDoc $ pretty (Tc.getTypeTE typedE) <> line
+              QType  -> putDoc $ ansiP (Tc.getTypeTE typedE) <> line
               QValue -> do
                 (desugared, desugaredE) <- dsExpr r typedE
                 let coreTced = fromRight [] $ Core.tc_ desugared  -- there shouldn't be any errors
@@ -364,7 +369,7 @@ interpExpr q r input =
                     absFunMap = M.fromList $ fmap (\d -> (CoreFunName . fromJust $ getFuncId d, id)) absFuns
                     conFunMap = M.fromList $ fmap (\d -> (CoreFunName . fromJust $ getFuncId d, d )) conFuns
                 v <- runReplM (eval typedCE) (ReplState V.Nil absFunMap conFunMap)
-                putDoc $ pretty (v :: Value () ()) <> line
+                putDoc $ ansiP (v :: Value () ()) <> line
 
 
 parseExpr :: Parser.Parser S.LocExpr
