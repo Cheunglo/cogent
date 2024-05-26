@@ -265,6 +265,7 @@ Executable cogent
               --, ansi-wl-pprint >= 0.6
               , prettyprinter >= 1.7.0
               , prettyprinter-ansi-terminal >= 1.1.3
+              , isa-parser >= 0.1.0.0
               , atomic-write >= 0.2.0.4
               , base >= 4.10 
               --&& < 4.17
