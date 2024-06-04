@@ -1225,4 +1225,6 @@ prettyRE (msg,ps) = ansiP msg `vsep2`
 prettyPrint :: PrettyAnsi a => (Doc AnsiStyle -> Doc AnsiStyle) -> [a] -> SimpleDocStream AnsiStyle
 prettyPrint f = renderSmart 1.0 120 . f . vcat . map ansiP
 
+prettyPrintError :: (Doc AnsiStyle -> Doc AnsiStyle) -> [Doc AnsiStyle] -> SimpleDocStream AnsiStyle
+prettyPrintError f = renderSmart 1.0 120 . f . vcat
 

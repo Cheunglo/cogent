@@ -46,6 +46,14 @@ gen-anti:
 		--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 		--entry-funcs=entrypoints.cfg
 
+verif:
+	mkdir -p $(ABSDIR)
+	cogent $(SRC) -A -g -o$(OUTPUT) \
+		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--cpp="$(CPP)" \
+		--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+		--entry-funcs=entrypoints.cfg
+
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)
 	@# rm -f *-gen.*

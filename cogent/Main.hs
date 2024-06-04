@@ -52,7 +52,7 @@ import           Cogent.Mono                      as MN (mono, printAFM)
 import           Cogent.Normal                    as NF (normal, verifyNormal)
 import           Cogent.Parser                    as PA (parseCustTyGen, parseWithIncludes)
 import           Cogent.Preprocess                as PR
-import           Cogent.PrettyPrint               as PP (prettyPrint, prettyRE, prettyTWE)
+import           Cogent.PrettyPrint               as PP (prettyPrint, prettyPrintError, prettyRE, prettyTWE)
 import           Cogent.Reorganizer               as RO (reorganize)
 import           Cogent.Simplify                  as SM
 import           Cogent.SuParser                  as SU (parse)
@@ -93,7 +93,7 @@ import           System.Process                   (readProcessWithExitCode)
 --import           Text.PrettyPrint.ANSI.Leijen     as LJ (Doc, displayIO, hPutDoc, plain)
 import           Prettyprinter                    as LJ (Doc)
 import           Prettyprinter.Render.Terminal    as LJT (AnsiStyle, hPutDoc)
-import           Isabelle.PrettyAnsi              as LJI (displayIO, plain)
+import           Isabelle.PrettyAnsi              as LJI (PrettyAnsi, displayIO, plain)
 #if MIN_VERSION_mainland_pretty(0,6,0)
 import           Text.PrettyPrint.Mainland        as M (hPutDoc, line, string, (</>))
 import           Text.PrettyPrint.Mainland.Class  as M (ppr)
@@ -604,9 +604,11 @@ parseArgs args = case getOpt' Permute options args of
 
     -- ------------------------------------------------------------------------
     -- Helper functions
-
+    -- prettyRE :: a -> Doc AnsiStyle
+	-- prettyTWE _ :: a -> Doc AnsiStyle
+    --printError :: (a -> Doc AnsiStyle) -> [a] -> IO () 
     printError f e = fontSwitch stderr >>= \s ->
-                     displayIO stderr (prettyPrint s $ map f e) >>
+                     displayIO stderr (prettyPrintError s $ map f e) >>
                      hPutStrLn stderr ""
     usage :: Verbosity -> String
     usage 0 = "Usage: cogent COMMAND.. [FLAG..] FILENAME\n"
@@ -616,7 +618,7 @@ parseArgs args = case getOpt' Permute options args of
 
     versionInfo = UT.getCogentVersion
     -- Depending on the target of output, switch on or off fonts
-    fontSwitch :: Handle -> IO (Doc AnsiStyle -> Doc AnsiStyle)
+    fontSwitch :: Handle -> IO (Doc ann -> Doc ann)
     fontSwitch h = hIsTerminalDevice h >>= \isTerminal ->
                      return $ if isTerminal && __cogent_fpretty_errmsgs then id else plain
     -- Commnad line parsing error

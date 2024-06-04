@@ -20,6 +20,9 @@ class PrettyAnsi a where
     ansiPList = align . list . map ansiP
     {-# MINIMAL ansiP #-}
 
+--instance PrettyAnsi (Doc ann) where
+--    ansiP = id
+
 instance PrettyAnsi a => PrettyAnsi (Const a b) where
     ansiP = ansiP . getConst
 
